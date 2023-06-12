@@ -14,63 +14,90 @@ import (
 	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/go-ipld-prime/linking"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipni/go-libipni/metadata"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/rvagg/go-frisbii/engine"
 )
 
+const ContextID = "frisbii"
+
 type FrisbiiServer struct {
-	ctx       context.Context
-	lsys      linking.LinkSystem
-	logWriter io.Writer
-	listener  net.Listener
+	Listener net.Listener
+
+	ctx             context.Context
+	lsys            linking.LinkSystem
+	mux             *http.ServeMux
+	logWriter       io.Writer
+	indexerProvider *engine.Engine
+	announceAs      *peer.AddrInfo
 }
 
-func (fs *FrisbiiServer) Addr() net.Addr {
-	return fs.listener.Addr()
-}
+func NewFrisbiiServer(
+	ctx context.Context,
+	logWriter io.Writer,
+	lsys linking.LinkSystem,
+	address string,
+) (*FrisbiiServer, error) {
 
-func (fs *FrisbiiServer) Start() error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ipfs/", handler(fs.ctx, fs.logWriter, fs.lsys))
-	server := &http.Server{
-		Addr:        fs.Addr().String(),
-		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
-		Handler:     mux,
-	}
-	return server.Serve(fs.listener)
-}
-
-func NewFrisbiiServer(ctx context.Context, logWriter io.Writer, lsys linking.LinkSystem, address string) (*FrisbiiServer, error) {
 	// Listen on the given address
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
 	return &FrisbiiServer{
+		Listener:  listener,
 		ctx:       ctx,
 		lsys:      lsys,
 		logWriter: logWriter,
-		listener:  listener,
 	}, nil
 }
 
+func (fs *FrisbiiServer) Addr() net.Addr {
+	return fs.Listener.Addr()
+}
+
+func (fs *FrisbiiServer) Start() error {
+	fs.mux = http.NewServeMux()
+	fs.mux.HandleFunc("/ipfs/", handler(fs.ctx, fs.logWriter, fs.lsys))
+	server := &http.Server{
+		Addr:        fs.Addr().String(),
+		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
+		Handler:     logMiddleware(fs.mux, fs.logWriter),
+	}
+	return server.Serve(fs.Listener)
+}
+
+func (fs *FrisbiiServer) SetIndexerProvider(handlerPath string, engine *engine.Engine, announceAs *peer.AddrInfo) error {
+	fs.indexerProvider = engine
+	fs.announceAs = announceAs
+	handlerFunc, err := engine.GetPublisherHttpFunc()
+	if err != nil {
+		return err
+	}
+	fmt.Println("Setting handler func for", handlerPath, "...")
+	fs.mux.HandleFunc(handlerPath, handlerFunc)
+	return nil
+}
+
+func (fs *FrisbiiServer) Announce() error {
+	if fs.indexerProvider == nil {
+		return fmt.Errorf("indexer provider not setup")
+	}
+	fmt.Println("Announcing with", fs.announceAs.String(), "...")
+	md := metadata.Default.New(metadata.IpfsGatewayHttp{})
+	c, err := fs.indexerProvider.NotifyPut(fs.ctx, fs.announceAs, []byte(ContextID), md)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Announced", c.String())
+	return nil
+}
+
 func handler(ctx context.Context, logWriter io.Writer, parentLsys linking.LinkSystem) http.HandlerFunc {
-	return func(res http.ResponseWriter, req *http.Request) {
-		log := func(status int, duration time.Duration, bytes int, msg string) {
-			fmt.Fprintf(
-				logWriter,
-				"%s %s %s \"%s\" %d %d %d \"%s\"\n",
-				time.Now().Format(time.RFC3339),
-				req.RemoteAddr,
-				req.Method,
-				req.URL,
-				status,
-				duration.Milliseconds(),
-				bytes,
-				msg,
-			)
-		}
-		logError := func(status int, msg string) {
-			log(status, 0, 0, msg)
-			http.Error(res, msg, status)
+	return func(_res http.ResponseWriter, req *http.Request) {
+		res, ok := _res.(*LoggingResponseWriter)
+		if !ok {
+			panic(fmt.Sprintf("expected LoggingResponseWriter, got %T", _res))
 		}
 
 		urlPath := strings.Split(req.URL.Path, "/")[1:]
@@ -79,7 +106,7 @@ func handler(ctx context.Context, logWriter io.Writer, parentLsys linking.LinkSy
 		cidStr := urlPath[1]
 		rootCid, err := cid.Parse(cidStr)
 		if err != nil {
-			logError(http.StatusBadRequest, fmt.Sprintf("bad CID: %s", cidStr))
+			res.LogError(http.StatusBadRequest, fmt.Sprintf("bad CID: %s", cidStr))
 			return
 		}
 
@@ -121,7 +148,7 @@ func handler(ctx context.Context, logWriter io.Writer, parentLsys linking.LinkSy
 		}
 
 		if !req.URL.Query().Has("car-scope") {
-			logError(http.StatusBadRequest, "missing car-scope parameter")
+			res.LogError(http.StatusBadRequest, "missing car-scope parameter")
 			return
 		}
 
@@ -135,14 +162,19 @@ func handler(ctx context.Context, logWriter io.Writer, parentLsys linking.LinkSy
 		case "block":
 			carScope = CarScopeBlock
 		default:
-			logError(http.StatusBadRequest, fmt.Sprintf("invalid car-scope parameter: %s", req.URL.Query().Get("car-scope")))
+			res.LogError(http.StatusBadRequest, fmt.Sprintf("invalid car-scope parameter: %s", req.URL.Query().Get("car-scope")))
+			return
+		}
+
+		if req.URL.Query().Get("dups") == "y" { // TODO: support it, it's not hard
+			res.LogError(http.StatusBadRequest, "dups=y is not currently supported")
 			return
 		}
 
 		selNode := unixfsnode.UnixFSPathSelectorBuilder(unixfsPath, carScope.TerminalSelectorSpec(), false)
 		sel, err := selector.CompileSelector(selNode)
 		if err != nil {
-			logError(http.StatusInternalServerError, fmt.Sprintf("failed to compile selector from car-scope: %v", err))
+			res.LogError(http.StatusInternalServerError, fmt.Sprintf("failed to compile selector from car-scope: %v", err))
 			return
 		}
 
@@ -160,13 +192,71 @@ func handler(ctx context.Context, logWriter io.Writer, parentLsys linking.LinkSy
 			},
 		}
 
-		start := time.Now()
-		if err := StreamCar(ctx, parentLsys, rootCid, sel, res); err != nil {
-			logError(http.StatusInternalServerError, err.Error())
+		if err := StreamCar(ctx, parentLsys, rootCid, sel, writer); err != nil {
+			res.LogError(http.StatusInternalServerError, err.Error())
 			return
 		}
-		log(http.StatusOK, time.Since(start), writer.byteCount, "")
 	}
+}
+
+func logMiddleware(next http.Handler, logWriter io.Writer) http.Handler {
+	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		lres := NewLoggingResponseWriter(res, req, logWriter)
+		start := time.Now()
+		defer func() {
+			lres.Log(http.StatusOK, time.Since(start), lres.bytes, "")
+		}()
+		next.ServeHTTP(lres, req)
+	})
+}
+
+var _ http.ResponseWriter = (*LoggingResponseWriter)(nil)
+
+type LoggingResponseWriter struct {
+	http.ResponseWriter
+	logWriter io.Writer
+	req       *http.Request
+	status    int
+	bytes     int
+}
+
+func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWriter io.Writer) *LoggingResponseWriter {
+	return &LoggingResponseWriter{
+		ResponseWriter: w,
+		req:            req,
+		logWriter:      logWriter,
+	}
+}
+
+func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes int, msg string) {
+	fmt.Fprintf(
+		w.logWriter,
+		"%s %s %s \"%s\" %d %d %d \"%s\"\n",
+		time.Now().Format(time.RFC3339),
+		w.req.RemoteAddr,
+		w.req.Method,
+		w.req.URL,
+		status,
+		duration.Milliseconds(),
+		bytes,
+		msg,
+	)
+}
+
+func (w *LoggingResponseWriter) LogError(status int, msg string) {
+	w.Log(status, 0, 0, msg)
+	http.Error(w.ResponseWriter, msg, status)
+}
+
+func (w *LoggingResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *LoggingResponseWriter) Write(b []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(b)
+	w.bytes += n
+	return n, err
 }
 
 var _ io.Writer = (*onFirstWriteWriter)(nil)
