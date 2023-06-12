@@ -2,6 +2,7 @@ package frisbii
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,21 +16,19 @@ import (
 	"github.com/ipld/go-ipld-prime/linking"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipni/go-libipni/metadata"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/rvagg/go-frisbii/engine"
 )
 
 const ContextID = "frisbii"
 
 type FrisbiiServer struct {
-	Listener net.Listener
-
 	ctx             context.Context
 	lsys            linking.LinkSystem
-	mux             *http.ServeMux
 	logWriter       io.Writer
+	address         string
+	listener        net.Listener
+	mux             *http.ServeMux
 	indexerProvider *engine.Engine
-	announceAs      *peer.AddrInfo
 }
 
 func NewFrisbiiServer(
@@ -38,22 +37,20 @@ func NewFrisbiiServer(
 	lsys linking.LinkSystem,
 	address string,
 ) (*FrisbiiServer, error) {
-
-	// Listen on the given address
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
 	return &FrisbiiServer{
-		Listener:  listener,
 		ctx:       ctx,
 		lsys:      lsys,
 		logWriter: logWriter,
+		listener:  listener,
 	}, nil
 }
 
 func (fs *FrisbiiServer) Addr() net.Addr {
-	return fs.Listener.Addr()
+	return fs.listener.Addr()
 }
 
 func (fs *FrisbiiServer) Start() error {
@@ -64,32 +61,27 @@ func (fs *FrisbiiServer) Start() error {
 		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
 		Handler:     logMiddleware(fs.mux, fs.logWriter),
 	}
-	return server.Serve(fs.Listener)
+	return server.Serve(fs.listener)
 }
 
-func (fs *FrisbiiServer) SetIndexerProvider(handlerPath string, engine *engine.Engine, announceAs *peer.AddrInfo) error {
+func (fs *FrisbiiServer) SetIndexerProvider(handlerPath string, engine *engine.Engine) error {
 	fs.indexerProvider = engine
-	fs.announceAs = announceAs
 	handlerFunc, err := engine.GetPublisherHttpFunc()
 	if err != nil {
 		return err
 	}
-	fmt.Println("Setting handler func for", handlerPath, "...")
 	fs.mux.HandleFunc(handlerPath, handlerFunc)
 	return nil
 }
 
 func (fs *FrisbiiServer) Announce() error {
 	if fs.indexerProvider == nil {
-		return fmt.Errorf("indexer provider not setup")
+		return errors.New("indexer provider not setup")
 	}
-	fmt.Println("Announcing with", fs.announceAs.String(), "...")
 	md := metadata.Default.New(metadata.IpfsGatewayHttp{})
-	c, err := fs.indexerProvider.NotifyPut(fs.ctx, fs.announceAs, []byte(ContextID), md)
-	if err != nil {
+	if _, err := fs.indexerProvider.NotifyPut(fs.ctx, nil, []byte(ContextID), md); err != nil {
 		return err
 	}
-	fmt.Println("Announced", c.String())
 	return nil
 }
 
@@ -229,11 +221,15 @@ func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWrite
 }
 
 func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes int, msg string) {
+	remoteAddr := w.req.RemoteAddr
+	if ss := strings.Split(remoteAddr, ":"); len(ss) > 0 {
+		remoteAddr = ss[0]
+	}
 	fmt.Fprintf(
 		w.logWriter,
 		"%s %s %s \"%s\" %d %d %d \"%s\"\n",
 		time.Now().Format(time.RFC3339),
-		w.req.RemoteAddr,
+		remoteAddr,
 		w.req.Method,
 		w.req.URL,
 		status,

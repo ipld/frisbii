@@ -3,22 +3,21 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/ipfs/go-log/v2"
-	"github.com/ipfs/go-unixfsnode"
+	car "github.com/ipld/go-car/v2"
 	carstorage "github.com/ipld/go-car/v2/storage"
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/maurl"
-	provider "github.com/ipni/index-provider"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multihash"
 	"github.com/rvagg/go-frisbii"
 	"github.com/rvagg/go-frisbii/engine"
 	"github.com/urfave/cli/v2"
@@ -60,7 +59,7 @@ func main() {
 					case "none":
 					case "roots":
 					default:
-						return fmt.Errorf("invalid announce parameter, must be of value [none,roots]")
+						return errors.New("invalid announce parameter, must be of value [none,roots]")
 					}
 					return nil
 				},
@@ -75,7 +74,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err)
 		os.Exit(1)
 	}
 }
@@ -88,124 +87,68 @@ func action(c *cli.Context) error {
 	announce := c.String("announce")
 	publicAddr := c.String("public-addr")
 
-	carFile, err := os.Open(carPath)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Opening CAR file...")
-	store, err := carstorage.OpenReadable(carFile)
-	if err != nil {
-		return err
-	}
-	logger.Info("CAR file opened")
-
 	confDir, err := configDir()
 	if err != nil {
 		return err
 	}
-
-	carLsys := cidlink.DefaultLinkSystem()
-	carLsys.SetReadStorage(store)
-	// TODO: should we trust it? maybe only if we've generated the index or enable a --trust flag? carLsys.TrustedStorage = true
-	unixfsnode.AddUnixFSReificationToLinkSystem(&carLsys)
-
-	server, err := frisbii.NewFrisbiiServer(ctx, c.App.Writer, carLsys, listenAddr)
+	privKey, id, err := loadPrivKey(confDir)
 	if err != nil {
 		return err
 	}
 
+	multicar := frisbii.NewMultiCarStore(true)
+	loadCar(multicar, carPath)
+
+	server, err := frisbii.NewFrisbiiServer(ctx, c.App.Writer, multicar.LinkSystem(), listenAddr)
+	if err != nil {
+		return err
+	}
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- server.Start()
 	}()
 
-	fmt.Fprintf(c.App.ErrWriter, "Listening on %s\n", server.Addr())
-
-	privKey, err := loadPrivKey(confDir)
+	frisbiiListenMaddr, err := getListenAddr(server.Addr().String(), publicAddr)
 	if err != nil {
 		return err
 	}
-	id, err := peer.IDFromPrivateKey(privKey)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(c.App.ErrWriter, "PeerID: %s\n", id.String())
 
-	frisbiiAddr := "http://" + server.Addr().String()
-	if publicAddr != "" {
-		frisbiiAddr = publicAddr
-	}
-
-	var frisbiiListenMaddr multiaddr.Multiaddr
-	frisbiiUrl, err := url.Parse(frisbiiAddr)
-	if err != nil {
-		// try as multiaddr
-		frisbiiListenMaddr, err = multiaddr.NewMultiaddr(frisbiiAddr)
-		if err != nil {
-			return fmt.Errorf("failed to parse public-addr [%s] as URL or multiaddr", frisbiiAddr)
-		}
-	} else {
-		frisbiiListenMaddr, err = maurl.FromURL(frisbiiUrl)
-		if err != nil {
-			return err
-		}
-	}
-	p2p, err := multiaddr.NewComponent("p2p", id.String())
-	if err != nil {
-		return err
-	}
-	frisbiiAddrInfo := peer.AddrInfo{
-		ID:    id,
-		Addrs: []multiaddr.Multiaddr{frisbiiListenMaddr},
-	}
-	frisbiiAddrInfoP2p := peer.AddrInfo{
-		ID:    id,
-		Addrs: []multiaddr.Multiaddr{multiaddr.Join(frisbiiListenMaddr, p2p)},
-	}
-	logger.Info("Listening on ", frisbiiAddrInfoP2p.Addrs[0].String())
+	logger.Infof("PeerID: %s", id.String())
+	logger.Infof("Listening on %s", server.Addr())
+	logger.Infof("Listening on %s", frisbiiListenMaddr.String())
 
 	if announce != "none" {
-		logger.Info("Announcing to indexer as ", frisbiiListenMaddr.String())
-
-		// assume roots
-		// TODO: support "all" with provider.CarMultihashIterator(idx), or similar
-		var mhLister provider.MultihashLister = func(ctx context.Context, id peer.ID, contextID []byte) (provider.MultihashIterator, error) {
-			mh := make([]multihash.Multihash, 0, len(store.Roots()))
-			for _, r := range store.Roots() {
-				mh = append(mh, r.Hash())
-			}
-			fmt.Println("Announcing roots:", mh[0].B58String())
-			return provider.SliceMultihashIterator(mh), nil
-		}
+		logger.Infof("Announcing to indexer as %s", frisbiiListenMaddr.String())
 
 		listenUrl, err := maurl.ToURL(frisbiiListenMaddr)
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintf(c.App.ErrWriter, "Announcing to indexer with PeerID %s\n", id.String())
 		engine, err := engine.New(
 			engine.WithPrivateKey(privKey),
-			engine.WithProvider(frisbiiAddrInfoP2p),
+			engine.WithProvider(peer.AddrInfo{ID: id, Addrs: []multiaddr.Multiaddr{frisbiiListenMaddr}}),
 			engine.WithDirectAnnounce(IndexerAnnounceUrl),
 			engine.WithPublisherKind(engine.HttpPublisher),
 			engine.WithHttpPublisherWithoutServer(),
 			engine.WithHttpPublisherHandlerPath(IndexerHandlerPath),
 			engine.WithHttpPublisherListenAddr(listenUrl.Host),
-			engine.WithHttpPublisherAnnounceAddr(frisbiiAddrInfoP2p.Addrs[0].String()),
+			engine.WithHttpPublisherAnnounceAddr(frisbiiListenMaddr.String()),
 		)
 		if err != nil {
 			return err
 		}
-		engine.RegisterMultihashLister(mhLister)
+
+		// assume announce type "roots"
+		// TODO: support "all" with provider.CarMultihashIterator(idx), or similar
+		engine.RegisterMultihashLister(multicar.RootsLister())
+
 		if err := engine.Start(ctx); err != nil {
 			return err
 		}
-		server.SetIndexerProvider(IndexerHandlerPath, engine, &frisbiiAddrInfo)
-	}
 
-	if announce != "none" {
+		server.SetIndexerProvider(IndexerHandlerPath, engine)
+
 		if err := server.Announce(); err != nil {
 			return err
 		}
@@ -219,28 +162,79 @@ func action(c *cli.Context) error {
 	return nil
 }
 
-func loadPrivKey(confDir string) (crypto.PrivKey, error) {
+func loadCar(multicar *frisbii.MultiCarStore, carPath string) error {
+	start := time.Now()
+	logger.Info("Opening CAR file...")
+	carFile, err := os.Open(carPath)
+	if err != nil {
+		return err
+	}
+	store, err := carstorage.OpenReadable(carFile, car.UseWholeCIDs(false))
+	if err != nil {
+		return err
+	}
+	logger.Infof("CAR file opened in %s", time.Since(start))
+	multicar.AddStore(store)
+	return nil
+}
+
+func getListenAddr(serverAddr string, publicAddr string) (multiaddr.Multiaddr, error) {
+	frisbiiAddr := "http://" + serverAddr
+	if publicAddr != "" {
+		frisbiiAddr = publicAddr
+	}
+
+	var frisbiiListenMaddr multiaddr.Multiaddr
+	frisbiiUrl, err := url.Parse(frisbiiAddr)
+	if err != nil {
+		// try as multiaddr
+		frisbiiListenMaddr, err = multiaddr.NewMultiaddr(frisbiiAddr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public-addr [%s] as URL or multiaddr", frisbiiAddr)
+		}
+	} else {
+		frisbiiListenMaddr, err = maurl.FromURL(frisbiiUrl)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return frisbiiListenMaddr, nil
+}
+
+func loadPrivKey(confDir string) (crypto.PrivKey, peer.ID, error) {
 	// make the config dir in the user's home dir if it doesn't exist
 	keyFile := path.Join(confDir, "key")
 	data, err := os.ReadFile(keyFile)
+	var privKey crypto.PrivKey
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, err
+			return nil, peer.ID(""), err
 		}
-		k, _, err := crypto.GenerateEd25519Key(rand.Reader)
+		var err error
+		privKey, _, err = crypto.GenerateEd25519Key(rand.Reader)
 		if err != nil {
-			return nil, err
+			return nil, peer.ID(""), err
 		}
-		data, err := crypto.MarshalPrivateKey(k)
+		data, err := crypto.MarshalPrivateKey(privKey)
 		if err != nil {
-			return nil, err
+			return nil, peer.ID(""), err
 		}
 		if err := os.WriteFile(keyFile, data, 0600); err != nil {
-			return nil, err
+			return nil, peer.ID(""), err
 		}
-		return k, nil
+	} else {
+		var err error
+		privKey, err = crypto.UnmarshalPrivateKey(data)
+		if err != nil {
+			return nil, peer.ID(""), err
+		}
 	}
-	return crypto.UnmarshalPrivateKey(data)
+	id, err := peer.IDFromPrivateKey(privKey)
+	if err != nil {
+		return nil, peer.ID(""), err
+	}
+	return privKey, id, nil
 }
 
 func configDir() (string, error) {
