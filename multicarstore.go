@@ -17,6 +17,8 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
+// MultiCarStore manages a list of carstorage.ReadableCar stores, providing a
+// unified LinkSystem interface to them.
 type MultiCarStore struct {
 	trusted bool
 	stores  []carstorage.ReadableCar
@@ -56,6 +58,10 @@ func (m *MultiCarStore) LinkSystem() linking.LinkSystem {
 	lsys.TrustedStorage = m.trusted
 	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)
 
+	// TODO: store affinity via context? Once we find a store that has the
+	// block, we should prefer it for the rest of the request.
+	// TODO: check roots list for the block being requested, if it's in the
+	// list, we know which store to go to first.
 	lsys.StorageReadOpener = func(lctx linking.LinkContext, lnk datamodel.Link) (io.Reader, error) {
 		m.lk.RLock()
 		defer m.lk.RUnlock()

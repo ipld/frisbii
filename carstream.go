@@ -20,6 +20,8 @@ import (
 
 var protoChooser = dagpb.AddSupportToChooser(basicnode.Chooser)
 
+// StreamCar streams a DAG in CARv1 format to the given writer, using the given
+// selector.
 func StreamCar(ctx context.Context, parentLsys linking.LinkSystem, rootCid cid.Cid, sel selector.Selector, out io.Writer) error {
 	carWriter, err := carstorage.NewWritable(out, []cid.Cid{rootCid}, car.WriteAsCarV1(true), car.AllowDuplicatePuts(false))
 	if err != nil {

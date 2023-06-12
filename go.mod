@@ -145,15 +145,10 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	golang.org/x/tools v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )
-
-replace github.com/ipni/go-libipni => ../../ipni/go-libipni
-
-replace github.com/ipld/go-car/v2 => ../../ipld/go-car/v2
-
-replace github.com/ipni/index-provider => ../../ipni/index-provider
