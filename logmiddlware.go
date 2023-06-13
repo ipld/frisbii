@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -30,7 +30,9 @@ func (lm *LogMiddleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	lres := NewLoggingResponseWriter(res, req, lm.logWriter)
 	start := time.Now()
 	defer func() {
-		lres.Log(http.StatusOK, time.Since(start), lres.bytes, "")
+		if lres.status == http.StatusOK {
+			lres.Log(http.StatusOK, time.Since(start), lres.bytes, "")
+		}
 	}()
 	lm.next.ServeHTTP(lres, req)
 }
@@ -74,7 +76,11 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 
 func (w *LoggingResponseWriter) LogError(status int, msg string) {
 	w.Log(status, 0, 0, msg)
-	http.Error(w.ResponseWriter, msg, status)
+	w.status = status
+	if w.bytes == 0 {
+		msg = strconv.Quote(msg)
+		http.Error(w.ResponseWriter, msg, status)
+	}
 }
 
 func (w *LoggingResponseWriter) WriteHeader(status int) {
@@ -83,22 +89,10 @@ func (w *LoggingResponseWriter) WriteHeader(status int) {
 }
 
 func (w *LoggingResponseWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
 	n, err := w.ResponseWriter.Write(b)
 	w.bytes += n
 	return n, err
-}
-
-var _ io.Writer = (*onFirstWriteWriter)(nil)
-
-type onFirstWriteWriter struct {
-	w         io.Writer
-	fn        func()
-	byteCount int
-	once      sync.Once
-}
-
-func (w *onFirstWriteWriter) Write(p []byte) (int, error) {
-	w.once.Do(w.fn)
-	w.byteCount += len(p)
-	return w.w.Write(p)
 }

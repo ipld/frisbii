@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-unixfsnode"
@@ -136,4 +137,19 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusInternalServerError, err.Error())
 		return
 	}
+}
+
+var _ io.Writer = (*onFirstWriteWriter)(nil)
+
+type onFirstWriteWriter struct {
+	w         io.Writer
+	fn        func()
+	byteCount int
+	once      sync.Once
+}
+
+func (w *onFirstWriteWriter) Write(p []byte) (int, error) {
+	w.once.Do(w.fn)
+	w.byteCount += len(p)
+	return w.w.Write(p)
 }
