@@ -59,7 +59,15 @@ func action(c *cli.Context) error {
 		loadCar(multicar, carPath)
 	}
 
-	server, err := frisbii.NewFrisbiiServer(ctx, c.App.Writer, multicar.LinkSystem(), config.Listen)
+	logWriter := c.App.Writer
+	if config.LogFile != "" {
+		logWriter, err = os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	server, err := frisbii.NewFrisbiiServer(ctx, logWriter, multicar.LinkSystem(), config.Listen)
 	if err != nil {
 		return err
 	}

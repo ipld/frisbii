@@ -18,6 +18,9 @@ const ContextID = "frisbii"
 
 var logger = log.Logger("frisbii")
 
+// FrisbiiServer is the main server for the frisbii application, it starts an
+// HTTP server to serve data according to the Trustless Gateway spec and it
+// also provides a mechanism to announce the server to the indexer service.
 type FrisbiiServer struct {
 	ctx             context.Context
 	lsys            linking.LinkSystem

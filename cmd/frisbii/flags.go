@@ -30,6 +30,10 @@ var Flags = []cli.Flag{
 		Name:  "public-addr",
 		Usage: "multiaddr or URL of this server as seen by the indexer and other peers if it is different to the listen address",
 	},
+	&cli.StringFlag{
+		Name:  "log-file",
+		Usage: "path to file to append HTTP request and error logs to, defaults to stdout",
+	},
 }
 
 type AnnounceType string
@@ -44,6 +48,7 @@ type Config struct {
 	Listen     string
 	Announce   AnnounceType
 	PublicAddr string
+	LogFile    string
 }
 
 func ToConfig(c *cli.Context) (Config, error) {
@@ -71,11 +76,13 @@ func ToConfig(c *cli.Context) (Config, error) {
 
 	listen := c.String("listen")
 	publicAddr := c.String("public-addr")
+	logFile := c.String("log-file")
 
 	return Config{
 		Cars:       carPaths,
 		Listen:     listen,
 		Announce:   announceType,
 		PublicAddr: publicAddr,
+		LogFile:    logFile,
 	}, nil
 }
