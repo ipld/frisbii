@@ -1,8 +1,11 @@
 package frisbii
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -62,7 +65,7 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 	}
 	fmt.Fprintf(
 		w.logWriter,
-		"%s %s %s \"%s\" %d %d %d \"%s\"\n",
+		"%s %s %s \"%s\" %d %d %d %s\n",
 		time.Now().Format(time.RFC3339),
 		remoteAddr,
 		w.req.Method,
@@ -70,7 +73,7 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 		status,
 		duration.Milliseconds(),
 		bytes,
-		msg,
+		strconv.Quote(msg),
 	)
 }
 
@@ -78,8 +81,7 @@ func (w *LoggingResponseWriter) LogError(status int, msg string) {
 	w.Log(status, 0, 0, msg)
 	w.status = status
 	if w.bytes == 0 {
-		msg = strconv.Quote(msg)
-		http.Error(w.ResponseWriter, msg, status)
+		http.Error(w.ResponseWriter, strconv.Quote(msg), status)
 	}
 }
 
@@ -95,4 +97,11 @@ func (w *LoggingResponseWriter) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.bytes += n
 	return n, err
+}
+
+func (w *LoggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, errors.New("http.Hijacker not implemented")
 }

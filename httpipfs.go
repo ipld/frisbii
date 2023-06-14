@@ -2,14 +2,17 @@ package frisbii
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 
+	lassiehttp "github.com/filecoin-project/lassie/pkg/server/http"
+	lassietypes "github.com/filecoin-project/lassie/pkg/types"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-unixfsnode"
+	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 )
@@ -41,100 +44,91 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	urlPath := strings.Split(req.URL.Path, "/")[1:]
+	path := datamodel.ParsePath(req.URL.Path)
+	_, path = path.Shift() // remove /ipfs
+
+	// filter out everything but GET requests
+	switch req.Method {
+	case http.MethodGet:
+		break
+	default:
+		res.Header().Add("Allow", http.MethodGet)
+		logError(http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	// check if CID path param is missing
+	if path.Len() == 0 {
+		// not a valid path to hit
+		logError(http.StatusNotFound, "not found")
+		return
+	}
+
+	includeDupes, err := lassiehttp.CheckFormat(req)
+	if err != nil {
+		logError(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	fileName, err := lassiehttp.ParseFilename(req)
+	if err != nil {
+		logError(http.StatusBadRequest, err.Error())
+		return
+	}
 
 	// validate CID path parameter
-	cidStr := urlPath[1]
-	rootCid, err := cid.Parse(cidStr)
+	var cidSeg datamodel.PathSegment
+	cidSeg, path = path.Shift()
+	rootCid, err := cid.Parse(cidSeg.String())
 	if err != nil {
-		logError(http.StatusBadRequest, fmt.Sprintf("bad CID: %s", cidStr))
+		logError(http.StatusInternalServerError, "failed to parse CID path parameter")
 		return
 	}
 
-	// Grab unixfs path if it exists
-	unixfsPath := ""
-	if len(urlPath) > 2 {
-		unixfsPath = "/" + strings.Join(urlPath[2:], "/")
-	}
-
-	hasAccept := req.Header.Get("Accept") != ""
-	acceptTypes := strings.Split(req.Header.Get("Accept"), ",")
-	validAccept := false
-	for _, acceptType := range acceptTypes {
-		typeParts := strings.Split(acceptType, ";")
-		if typeParts[0] == "*/*" || typeParts[0] == "application/*" || typeParts[0] == "application/vnd.ipld.car" {
-			validAccept = true
-			break
-		}
-	}
-	hasFormat := req.URL.Query().Has("format")
-	if hasAccept && !validAccept {
-		res.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if hasFormat && req.URL.Query().Get("format") != "car" {
-		res.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if !validAccept && !hasFormat {
-		res.WriteHeader(http.StatusBadRequest)
+	dagScope, err := lassiehttp.ParseScope(req)
+	if err != nil {
+		logError(http.StatusBadRequest, err.Error())
 		return
 	}
 
-	var filename string
-	if req.URL.Query().Has("filename") {
-		filename = req.URL.Query().Get("filename")
-	} else {
-		filename = fmt.Sprintf("%s.car", rootCid.String())
+	if fileName == "" {
+		fileName = fmt.Sprintf("%s%s", rootCid.String(), lassiehttp.FilenameExtCar)
 	}
 
-	if !req.URL.Query().Has("car-scope") {
-		logError(http.StatusBadRequest, "missing car-scope parameter")
-		return
-	}
-
-	// Parse car scope and use it to get selector
-	var carScope CarScope
-	switch req.URL.Query().Get("car-scope") {
-	case "all":
-		carScope = CarScopeAll
-	case "file":
-		carScope = CarScopeFile
-	case "block":
-		carScope = CarScopeBlock
-	default:
-		logError(http.StatusBadRequest, fmt.Sprintf("invalid car-scope parameter: %s", req.URL.Query().Get("car-scope")))
-		return
-	}
-
-	if req.URL.Query().Get("dups") == "y" { // TODO: support it, it's not hard
-		logError(http.StatusBadRequest, "dups=y is not currently supported")
-		return
-	}
-
-	selNode := unixfsnode.UnixFSPathSelectorBuilder(unixfsPath, carScope.TerminalSelectorSpec(), false)
+	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
 	sel, err := selector.CompileSelector(selNode)
 	if err != nil {
 		logError(http.StatusInternalServerError, fmt.Sprintf("failed to compile selector from car-scope: %v", err))
 		return
 	}
 
+	bytesWrittenCh := make(chan struct{})
 	writer := &onFirstWriteWriter{
 		w: res,
 		fn: func() {
 			// called once we start writing blocks into the CAR (on the first Put())
-			res.Header().Set("Content-Disposition", "attachment; filename="+filename)
-			res.Header().Set("Accept-Ranges", "none")
-			res.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
-			res.Header().Set("Content-Type", "application/vnd.ipld.car; version=1")
-			res.Header().Set("Etag", fmt.Sprintf("%s.car", rootCid.String()))
+			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+			res.Header().Set("Accept-Ranges", lassiehttp.ResponseAcceptRangesHeader)
+			res.Header().Set("Cache-Control", lassiehttp.ResponseCacheControlHeader)
+			res.Header().Set("Content-Type", lassiehttp.ResponseContentTypeHeader)
+			res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
 			res.Header().Set("X-Content-Type-Options", "nosniff")
-			res.Header().Set("X-Ipfs-Path", req.URL.Path)
+			res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
+			close(bytesWrittenCh)
 		},
 	}
 
-	if err := StreamCar(hi.ctx, hi.parentLsys, rootCid, sel, writer); err != nil {
+	if err := StreamCar(hi.ctx, hi.parentLsys, rootCid, sel, writer, includeDupes); err != nil {
 		logError(http.StatusInternalServerError, err.Error())
+		select {
+		case <-bytesWrittenCh:
+			logger.Debugw("unclean close", "cid", rootCid, "err", err)
+			if err := closeWithUnterminatedChunk(res); err != nil {
+				logger.Infow("unable to send early termination", "err", err)
+			}
+			return
+		default:
+		}
 		return
 	}
 }
@@ -152,4 +146,38 @@ func (w *onFirstWriteWriter) Write(p []byte) (int, error) {
 	w.once.Do(w.fn)
 	w.byteCount += len(p)
 	return w.w.Write(p)
+}
+
+func etag(root cid.Cid, path string, scope lassietypes.DagScope, duplicates bool) string {
+	return lassietypes.RetrievalRequest{
+		Cid:        root,
+		Path:       path,
+		Scope:      scope,
+		Duplicates: duplicates,
+	}.Etag()
+}
+
+// closeWithUnterminatedChunk attempts to take control of the the http conn and terminate the stream early
+//
+// (copied from github.com/filecoin-project/lassie/pkg/server/http/ipfs.go)
+func closeWithUnterminatedChunk(res http.ResponseWriter) error {
+	hijacker, ok := res.(http.Hijacker)
+	if !ok {
+		return errors.New("unable to access hijack interface")
+	}
+	conn, buf, err := hijacker.Hijack()
+	if err != nil {
+		return fmt.Errorf("unable to access conn through hijack interface: %w", err)
+	}
+	if _, err := buf.Write(lassiehttp.ResponseChunkDelimeter); err != nil {
+		return fmt.Errorf("writing response chunk delimiter: %w", err)
+	}
+	if err := buf.Flush(); err != nil {
+		return fmt.Errorf("flushing buff: %w", err)
+	}
+	// attempt to close just the write side
+	if err := conn.Close(); err != nil {
+		return fmt.Errorf("closing write conn: %w", err)
+	}
+	return nil
 }
