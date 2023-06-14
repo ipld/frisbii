@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/ipfs/go-log/v2"
+	"github.com/ipfs/go-unixfsnode"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -55,7 +57,7 @@ func action(c *cli.Context) error {
 		return err
 	}
 
-	multicar := frisbii.NewMultiReadableStorage(true)
+	multicar := frisbii.NewMultiReadableStorage()
 	for _, carPath := range config.Cars {
 		loadCar(multicar, carPath)
 	}
@@ -68,7 +70,12 @@ func action(c *cli.Context) error {
 		}
 	}
 
-	server, err := frisbii.NewFrisbiiServer(ctx, logWriter, multicar.LinkSystem(), config.Listen)
+	lsys := cidlink.DefaultLinkSystem()
+	lsys.TrustedStorage = true
+	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)
+	lsys.SetReadStorage(multicar)
+
+	server, err := frisbii.NewFrisbiiServer(ctx, logWriter, lsys, config.Listen)
 	if err != nil {
 		return err
 	}

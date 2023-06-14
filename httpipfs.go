@@ -14,7 +14,6 @@ import (
 	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
-	"github.com/ipld/go-ipld-prime/traversal/selector"
 )
 
 var _ http.Handler = (*HttpIpfs)(nil)
@@ -22,16 +21,16 @@ var _ http.Handler = (*HttpIpfs)(nil)
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
 // Trustless Gateway specification.
 type HttpIpfs struct {
-	ctx        context.Context
-	logWriter  io.Writer
-	parentLsys linking.LinkSystem
+	ctx       context.Context
+	logWriter io.Writer
+	lsys      linking.LinkSystem
 }
 
-func NewHttpIpfs(ctx context.Context, logWriter io.Writer, parentLsys linking.LinkSystem) *HttpIpfs {
+func NewHttpIpfs(ctx context.Context, logWriter io.Writer, lsys linking.LinkSystem) *HttpIpfs {
 	return &HttpIpfs{
-		ctx:        ctx,
-		logWriter:  logWriter,
-		parentLsys: parentLsys,
+		ctx:       ctx,
+		logWriter: logWriter,
+		lsys:      lsys,
 	}
 }
 
@@ -96,11 +95,6 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 
 	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
-	sel, err := selector.CompileSelector(selNode)
-	if err != nil {
-		logError(http.StatusInternalServerError, fmt.Sprintf("failed to compile selector from car-scope: %v", err))
-		return
-	}
 
 	bytesWrittenCh := make(chan struct{})
 	writer := &onFirstWriteWriter{
@@ -118,7 +112,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		},
 	}
 
-	if err := StreamCar(hi.ctx, hi.parentLsys, rootCid, sel, writer, includeDupes); err != nil {
+	if err := StreamCar(hi.ctx, hi.lsys, rootCid, selNode, writer, includeDupes); err != nil {
 		logError(http.StatusInternalServerError, err.Error())
 		select {
 		case <-bytesWrittenCh:

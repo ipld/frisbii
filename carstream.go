@@ -13,6 +13,7 @@ import (
 	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
 	_ "github.com/ipld/go-ipld-prime/codec/json"
 	_ "github.com/ipld/go-ipld-prime/codec/raw"
+	"github.com/ipld/go-ipld-prime/traversal/selector"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car/v2"
@@ -22,14 +23,18 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/traversal"
-	"github.com/ipld/go-ipld-prime/traversal/selector"
 )
 
 var protoChooser = dagpb.AddSupportToChooser(basicnode.Chooser)
 
 // StreamCar streams a DAG in CARv1 format to the given writer, using the given
 // selector.
-func StreamCar(ctx context.Context, requestLsys linking.LinkSystem, rootCid cid.Cid, sel selector.Selector, out io.Writer, duplicates bool) error {
+func StreamCar(ctx context.Context, requestLsys linking.LinkSystem, rootCid cid.Cid, selNode datamodel.Node, out io.Writer, duplicates bool) error {
+	sel, err := selector.CompileSelector(selNode)
+	if err != nil {
+		return fmt.Errorf("failed to compile selector: %w", err)
+	}
+
 	carWriter, err := carstorage.NewWritable(out, []cid.Cid{rootCid}, car.WriteAsCarV1(true), car.AllowDuplicatePuts(duplicates))
 	if err != nil {
 		return fmt.Errorf("failed to create car writer: %w", err)

@@ -90,7 +90,7 @@ func (fs *FrisbiiServer) Announce() error {
 		logger.Errorf("Announce() error: %s", err)
 		return err
 	} else {
-		logger.Debugf("Announce() complete", "advCid", c.String())
+		logger.Debugw("Announce() complete", "advCid", c.String())
 	}
 	return nil
 }

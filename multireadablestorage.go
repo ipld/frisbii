@@ -7,30 +7,27 @@ import (
 
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
-	"github.com/ipfs/go-unixfsnode"
-	"github.com/ipld/go-ipld-prime/datamodel"
-	"github.com/ipld/go-ipld-prime/linking"
-	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage"
 	provider "github.com/ipni/index-provider"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 )
 
+var _ storage.StreamingReadableStorage = (*MultiReadableStorage)(nil)
+var _ storage.ReadableStorage = (*MultiReadableStorage)(nil)
+
 // MultiReadableStorage manages a list of storage.StreamingReadableStorage
 // stores, providing a unified LinkSystem interface to them.
 type MultiReadableStorage struct {
-	trusted bool
-	stores  []storage.StreamingReadableStorage
-	roots   []cid.Cid
-	lk      sync.RWMutex
+	stores []storage.StreamingReadableStorage
+	roots  []cid.Cid
+	lk     sync.RWMutex
 }
 
-func NewMultiReadableStorage(trusted bool) *MultiReadableStorage {
+func NewMultiReadableStorage() *MultiReadableStorage {
 	return &MultiReadableStorage{
-		trusted: trusted,
-		stores:  make([]storage.StreamingReadableStorage, 0),
-		roots:   make([]cid.Cid, 0),
+		stores: make([]storage.StreamingReadableStorage, 0),
+		roots:  make([]cid.Cid, 0),
 	}
 }
 
@@ -53,30 +50,59 @@ func (m *MultiReadableStorage) RootsLister() provider.MultihashLister {
 	}
 }
 
-func (m *MultiReadableStorage) LinkSystem() linking.LinkSystem {
-	lsys := cidlink.DefaultLinkSystem()
-	lsys.TrustedStorage = m.trusted
-	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)
-
-	// TODO: store affinity via context? Once we find a store that has the
-	// block, we should prefer it for the rest of the request.
-	// TODO: check roots list for the block being requested, if it's in the
-	// list, we know which store to go to first.
-	lsys.StorageReadOpener = func(lctx linking.LinkContext, lnk datamodel.Link) (io.Reader, error) {
-		m.lk.RLock()
-		defer m.lk.RUnlock()
-		for _, store := range m.stores {
-			rdr, err := store.GetStream(lctx.Ctx, lnk.Binary())
+func (m *MultiReadableStorage) Has(ctx context.Context, key string) (bool, error) {
+	m.lk.RLock()
+	defer m.lk.RUnlock()
+	for _, store := range m.stores {
+		if hasStore, ok := store.(storage.Storage); ok {
+			has, err := hasStore.Has(ctx, key)
+			if err != nil {
+				return false, err
+			}
+			if has {
+				return true, nil
+			}
+		} else {
+			rdr, err := store.GetStream(ctx, key)
 			if err != nil {
 				if nf, ok := err.(interface{ NotFound() bool }); ok && nf.NotFound() {
 					continue
 				}
-				return nil, err
+				return false, err
 			}
-			return rdr, nil
+			rdr.Close()
+			return true, nil
 		}
-		return nil, format.ErrNotFound{Cid: lnk.(cidlink.Link).Cid}
 	}
+	return false, nil
+}
 
-	return lsys
+func (m *MultiReadableStorage) Get(ctx context.Context, key string) ([]byte, error) {
+	if rdr, err := m.GetStream(ctx, key); err != nil {
+		return nil, err
+	} else {
+		return io.ReadAll(rdr)
+	}
+}
+
+// TODO: store affinity via context? Once we find a store that has the
+// block, we should prefer it for the rest of the request.
+// TODO: check roots list for the block being requested, if it's in the
+// list, we know which store to go to first.
+
+func (m *MultiReadableStorage) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
+	m.lk.RLock()
+	defer m.lk.RUnlock()
+	for _, store := range m.stores {
+		rdr, err := store.GetStream(ctx, key)
+		if err != nil {
+			if nf, ok := err.(interface{ NotFound() bool }); ok && nf.NotFound() {
+				continue
+			}
+			return nil, err
+		}
+		return rdr, nil
+	}
+	cid, _ := cid.Cast([]byte(key))
+	return nil, format.ErrNotFound{Cid: cid}
 }
