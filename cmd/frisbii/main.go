@@ -49,12 +49,13 @@ func action(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
 	privKey, id, err := loadPrivKey(confDir)
 	if err != nil {
 		return err
 	}
 
-	multicar := frisbii.NewMultiCarStore(true)
+	multicar := frisbii.NewMultiReadableStorage(true)
 	for _, carPath := range config.Cars {
 		loadCar(multicar, carPath)
 	}
@@ -73,7 +74,7 @@ func action(c *cli.Context) error {
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.Start()
+		errCh <- server.Serve()
 	}()
 
 	frisbiiListenMaddr, err := getListenAddr(server.Addr().String(), config.PublicAddr)

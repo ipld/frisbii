@@ -17,7 +17,7 @@ import (
 	"github.com/rvagg/go-frisbii"
 )
 
-func loadCar(multicar *frisbii.MultiCarStore, carPath string) error {
+func loadCar(multicar *frisbii.MultiReadableStorage, carPath string) error {
 	start := time.Now()
 	logger.Infof("Opening CAR file [%s]...", carPath)
 	carFile, err := os.Open(carPath)
@@ -29,7 +29,7 @@ func loadCar(multicar *frisbii.MultiCarStore, carPath string) error {
 		return err
 	}
 	logger.Infof("CAR file [%s] opened in %s", carPath, time.Since(start))
-	multicar.AddStore(store)
+	multicar.AddStore(store, store.Roots())
 	return nil
 }
 

@@ -8,40 +8,40 @@ import (
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-unixfsnode"
-	carstorage "github.com/ipld/go-car/v2/storage"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/storage"
 	provider "github.com/ipni/index-provider"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 )
 
-// MultiCarStore manages a list of carstorage.ReadableCar stores, providing a
-// unified LinkSystem interface to them.
-type MultiCarStore struct {
+// MultiReadableStorage manages a list of storage.StreamingReadableStorage
+// stores, providing a unified LinkSystem interface to them.
+type MultiReadableStorage struct {
 	trusted bool
-	stores  []carstorage.ReadableCar
+	stores  []storage.StreamingReadableStorage
 	roots   []cid.Cid
 	lk      sync.RWMutex
 }
 
-func NewMultiCarStore(trusted bool) *MultiCarStore {
-	return &MultiCarStore{
+func NewMultiReadableStorage(trusted bool) *MultiReadableStorage {
+	return &MultiReadableStorage{
 		trusted: trusted,
-		stores:  make([]carstorage.ReadableCar, 0),
+		stores:  make([]storage.StreamingReadableStorage, 0),
 		roots:   make([]cid.Cid, 0),
 	}
 }
 
-func (m *MultiCarStore) AddStore(store carstorage.ReadableCar) {
+func (m *MultiReadableStorage) AddStore(store storage.StreamingReadableStorage, roots []cid.Cid) {
 	m.lk.Lock()
 	defer m.lk.Unlock()
 	m.stores = append(m.stores, store)
-	m.roots = append(m.roots, store.Roots()...)
+	m.roots = append(m.roots, roots...)
 }
 
-func (m *MultiCarStore) RootsLister() provider.MultihashLister {
+func (m *MultiReadableStorage) RootsLister() provider.MultihashLister {
 	return func(ctx context.Context, id peer.ID, contextID []byte) (provider.MultihashIterator, error) {
 		m.lk.RLock()
 		defer m.lk.RUnlock()
@@ -53,7 +53,7 @@ func (m *MultiCarStore) RootsLister() provider.MultihashLister {
 	}
 }
 
-func (m *MultiCarStore) LinkSystem() linking.LinkSystem {
+func (m *MultiReadableStorage) LinkSystem() linking.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.TrustedStorage = m.trusted
 	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)

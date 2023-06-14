@@ -7,16 +7,18 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ipld/go-ipld-prime/linking"
 	"github.com/ipni/go-libipni/metadata"
-	"github.com/rvagg/go-frisbii/engine"
 )
 
 const ContextID = "frisbii"
 
 var logger = log.Logger("frisbii")
+var advMetadata = metadata.Default.New(metadata.IpfsGatewayHttp{})
 
 // FrisbiiServer is the main server for the frisbii application, it starts an
 // HTTP server to serve data according to the Trustless Gateway spec and it
@@ -27,7 +29,12 @@ type FrisbiiServer struct {
 	logWriter       io.Writer
 	listener        net.Listener
 	mux             *http.ServeMux
-	indexerProvider *engine.Engine
+	indexerProvider IndexerProvider
+}
+
+type IndexerProvider interface {
+	GetPublisherHttpFunc() (http.HandlerFunc, error)
+	NotifyPut(ctx context.Context, provider *peer.AddrInfo, contextID []byte, md metadata.Metadata) (cid.Cid, error)
 }
 
 func NewFrisbiiServer(
@@ -52,7 +59,7 @@ func (fs *FrisbiiServer) Addr() net.Addr {
 	return fs.listener.Addr()
 }
 
-func (fs *FrisbiiServer) Start() error {
+func (fs *FrisbiiServer) Serve() error {
 	fs.mux = http.NewServeMux()
 	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.logWriter, fs.lsys))
 	server := &http.Server{
@@ -60,13 +67,13 @@ func (fs *FrisbiiServer) Start() error {
 		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
 		Handler:     NewLogMiddleware(fs.mux, fs.logWriter),
 	}
-	logger.Debugf("Start() server on %s", fs.Addr().String())
+	logger.Debugf("Serve() server on %s", fs.Addr().String())
 	return server.Serve(fs.listener)
 }
 
-func (fs *FrisbiiServer) SetIndexerProvider(handlerPath string, engine *engine.Engine) error {
-	fs.indexerProvider = engine
-	handlerFunc, err := engine.GetPublisherHttpFunc()
+func (fs *FrisbiiServer) SetIndexerProvider(handlerPath string, indexerProvider IndexerProvider) error {
+	fs.indexerProvider = indexerProvider
+	handlerFunc, err := indexerProvider.GetPublisherHttpFunc()
 	if err != nil {
 		return err
 	}
@@ -79,11 +86,11 @@ func (fs *FrisbiiServer) Announce() error {
 	if fs.indexerProvider == nil {
 		return errors.New("indexer provider not setup")
 	}
-	md := metadata.Default.New(metadata.IpfsGatewayHttp{})
-	if _, err := fs.indexerProvider.NotifyPut(fs.ctx, nil, []byte(ContextID), md); err != nil {
+	if c, err := fs.indexerProvider.NotifyPut(fs.ctx, nil, []byte(ContextID), advMetadata); err != nil {
 		logger.Errorf("Announce() error: %s", err)
 		return err
+	} else {
+		logger.Debugf("Announce() complete", "advCid", c.String())
 	}
-	logger.Debugf("Announce() complete")
 	return nil
 }
