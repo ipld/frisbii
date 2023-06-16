@@ -12,12 +12,12 @@ import (
 	gstestutil "github.com/ipfs/go-graphsync/testutil"
 	unixfs "github.com/ipfs/go-unixfsnode/testutil"
 	"github.com/ipld/go-car/v2"
+	"github.com/ipld/go-frisbii"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
-	"github.com/rvagg/go-frisbii"
 	"github.com/stretchr/testify/require"
 )
 

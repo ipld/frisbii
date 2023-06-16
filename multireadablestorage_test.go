@@ -8,12 +8,12 @@ import (
 
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
+	"github.com/ipld/go-frisbii"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	mh "github.com/multiformats/go-multihash"
-	"github.com/rvagg/go-frisbii"
 	"github.com/stretchr/testify/require"
 )
 

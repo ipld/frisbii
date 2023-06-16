@@ -6,12 +6,12 @@ import (
 
 	"github.com/ipfs/go-log/v2"
 	"github.com/ipfs/go-unixfsnode"
+	"github.com/ipld/go-frisbii"
+	"github.com/ipld/go-frisbii/engine"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/rvagg/go-frisbii"
-	"github.com/rvagg/go-frisbii/engine"
 	"github.com/urfave/cli/v2"
 )
 

@@ -17,16 +17,14 @@ var Flags = []cli.Flag{
 		Required: true,
 	},
 	&cli.StringFlag{
-		Name:        "listen",
-		Usage:       "hostname and port to listen on",
-		DefaultText: "defaults to listening on all interfaces on a random port",
-		Value:       ":" + strconv.FormatInt(int64(DefaultHttpPort), 10),
+		Name:  "listen",
+		Usage: "hostname and port to listen on",
+		Value: ":" + strconv.FormatInt(int64(DefaultHttpPort), 10),
 	},
 	&cli.StringFlag{
-		Name:        "announce",
-		Usage:       "indexer announcement style",
-		DefaultText: "defaults to not announcing content to the indexer",
-		Value:       "none",
+		Name:  "announce",
+		Usage: "content to announce to the indexer, one of [none,roots]",
+		Value: "none",
 	},
 	&cli.StringFlag{
 		Name:  "public-addr",
