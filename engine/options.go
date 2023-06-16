@@ -149,6 +149,7 @@ func newOptions(o ...Option) (*options, error) {
 	return opts, nil
 }
 
+/* TODO: uncomment when reconciled with indexer-provider
 func (o *options) retrievalAddrsAsString() []string {
 	var ras []string
 	for _, ra := range o.provider.Addrs {
@@ -156,6 +157,7 @@ func (o *options) retrievalAddrsAsString() []string {
 	}
 	return ras
 }
+*/
 
 // WithPurgeCacheOnStart sets whether to clear any cached entries chunks when the provider engine
 // starts.

@@ -2,8 +2,6 @@ package httpsync
 
 import (
 	"bytes"
-	"errors"
-	"io"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/codec/dagjson"
@@ -71,6 +69,7 @@ func newEncodedSignedHead(cid cid.Cid, privKey ic.PrivKey) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+/* TODO: uncomment when reconciled with go-libipni
 // openSignedHead returns the cid from the encoded signed head given a public key
 func openSignedHead(pubKey ic.PubKey, SignedHead io.Reader) (cid.Cid, error) {
 	envelop, err := decodeEnvelope(SignedHead)
@@ -122,3 +121,4 @@ func openSignedHeadEnvelop(pubKey ic.PubKey, envelop signedHead) (cid.Cid, error
 
 	return envelop.Head.Cid, err
 }
+*/
