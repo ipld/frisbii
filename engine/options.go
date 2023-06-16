@@ -7,7 +7,6 @@ import (
 	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
-	"github.com/ipni/go-libipni/dagsync"
 	_ "github.com/ipni/go-libipni/maurl"
 	"github.com/ipni/index-provider/engine/chunker"
 	"github.com/ipni/index-provider/engine/policy"
@@ -66,16 +65,8 @@ type (
 		// default configured provider will be assumed.
 		provider peer.AddrInfo
 
-		// pubKind controls the publisher kind to set up for announcements if
-		// one is should be set up by the provider enginer.
 		pubKind PublisherKind
-		// pubDT is the datatransfer manager to use for the publisher if the
-		// provider engine needs to set up a pubKind=DataTransferPublisher
-		pubDT datatransfer.Manager
-		// pub is a publisher supplied by the user, to be used by the provider
-		// engine instead of inspecting pubKind and setting up a publisher
-		// itself.
-		pub dagsync.Publisher
+		pubDT   datatransfer.Manager
 		// pubHttpAnnounceAddrs are the addresses that are put into announce
 		// messages to tell the indexer the addresses where advertisement are
 		// published.
@@ -141,7 +132,6 @@ func newOptions(o ...Option) (*options, error) {
 		// Initialize private key from libp2p host
 		opts.key = opts.h.Peerstore().PrivKey(opts.h.ID())
 	}
-
 	// Defensively check that host's self private key is indeed set.
 	if opts.key == nil {
 		return nil, fmt.Errorf("cannot find private key in self peerstore; libp2p host is misconfigured")
@@ -159,7 +149,6 @@ func newOptions(o ...Option) (*options, error) {
 	return opts, nil
 }
 
-/*
 func (o *options) retrievalAddrsAsString() []string {
 	var ras []string
 	for _, ra := range o.provider.Addrs {
@@ -167,7 +156,6 @@ func (o *options) retrievalAddrsAsString() []string {
 	}
 	return ras
 }
-*/
 
 // WithPurgeCacheOnStart sets whether to clear any cached entries chunks when the provider engine
 // starts.
@@ -240,9 +228,6 @@ func WithEntriesCacheCapacity(s int) Option {
 // See: PublisherKind.
 func WithPublisherKind(k PublisherKind) Option {
 	return func(o *options) error {
-		if o.pub != nil {
-			return fmt.Errorf("cannot set publisher kind after setting publisher")
-		}
 		o.pubKind = k
 		return nil
 	}
@@ -260,6 +245,8 @@ func WithHttpPublisherListenAddr(addr string) Option {
 	}
 }
 
+// WithHttpPublisherWithoutServer sets the HTTP publisher to not start a server.
+// Setting up the handler is left to the user.
 func WithHttpPublisherWithoutServer() Option {
 	return func(o *options) error {
 		o.pubHttpWithoutServer = true
@@ -330,21 +317,6 @@ func WithDataTransfer(dt datatransfer.Manager) Option {
 	}
 }
 
-// WithPublisher sets a publisher for the provider engine to use. If this is set
-// the provider engine will not create its own publisher, and the
-// WithPublisherKind option will be ignored.
-// The PublisherKind argument is required here as it will determine how
-// announcements are structured.
-//
-// See: WithPublisherKind.
-func WithPublisher(k PublisherKind, pub dagsync.Publisher) Option {
-	return func(o *options) error {
-		o.pubKind = k
-		o.pub = pub
-		return nil
-	}
-}
-
 // WithHost specifies the host to which the provider engine belongs.
 // If unspecified, a host is created automatically.
 // See: libp2p.New.
@@ -386,13 +358,6 @@ func WithRetrievalAddrs(addrs ...string) Option {
 	}
 }
 
-func WithPrivateKey(key crypto.PrivKey) Option {
-	return func(o *options) error {
-		o.key = key
-		return nil
-	}
-}
-
 func WithSyncPolicy(syncPolicy *policy.Policy) Option {
 	return func(o *options) error {
 		o.syncPolicy = syncPolicy
@@ -419,6 +384,13 @@ func WithExtraGossipData(extraData []byte) Option {
 			o.pubExtraGossipData = make([]byte, len(extraData))
 			copy(o.pubExtraGossipData, extraData)
 		}
+		return nil
+	}
+}
+
+func WithPrivateKey(key crypto.PrivKey) Option {
+	return func(o *options) error {
+		o.key = key
 		return nil
 	}
 }

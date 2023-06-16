@@ -138,11 +138,6 @@ func (e *Engine) Start(ctx context.Context) error {
 }
 
 func (e *Engine) newPublisher() (dagsync.Publisher, error) {
-	// if the user supplied a publisher, use it
-	if e.pub != nil {
-		return e.pub, nil
-	}
-
 	switch e.pubKind {
 	case NoPublisher:
 		log.Info("Remote announcements is disabled; all advertisements will only be store locally.")
@@ -430,6 +425,10 @@ func (e *Engine) Shutdown() error {
 	return errs
 }
 
+// GetPublisherHttpFunc gets the http.HandlerFunc that can be used to serve
+// advertisements over HTTP. The returned handler is only valid if the
+// PublisherKind is HttpPublisher and the HttpPublisherWithoutServer option is
+// set.
 func (e *Engine) GetPublisherHttpFunc() (http.HandlerFunc, error) {
 	if e.publisher == nil {
 		return nil, errors.New("no publisher configured")
@@ -608,15 +607,15 @@ func (e *Engine) publishAdvForIndex(ctx context.Context, p peer.ID, addrs []mult
 	}
 
 	// Check for cid.Undef for the previous link. If this is the case, then
-	// this means there is a "cid too short" error in IPLD links serialization.
-	if prevAdvID != cid.Undef {
+	// this means there are no previous advertisements.
+	if prevAdvID == cid.Undef {
 		log.Info("Latest advertisement CID was undefined - no previous advertisement")
-		prev := ipld.Link(cidlink.Link{Cid: prevAdvID})
-		adv.PreviousID = prev
+	} else {
+		adv.PreviousID = ipld.Link(cidlink.Link{Cid: prevAdvID})
 	}
 
 	// Sign the advertisement.
-	if err := adv.Sign(e.key); err != nil {
+	if err = adv.Sign(e.key); err != nil {
 		return cid.Undef, err
 	}
 	return e.Publish(ctx, adv)
