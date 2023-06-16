@@ -4,7 +4,9 @@ import (
 	"errors"
 	"path/filepath"
 	"strconv"
+	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/urfave/cli/v2"
 )
 
@@ -34,6 +36,16 @@ var Flags = []cli.Flag{
 		Name:  "log-file",
 		Usage: "path to file to append HTTP request and error logs to, defaults to stdout",
 	},
+	&cli.DurationFlag{
+		Name:  "max-response-duration",
+		Usage: "maximum duration to spend responding to a request (use 0 for no limit)",
+		Value: time.Minute * 5,
+	},
+	&cli.StringFlag{
+		Name:  "max-response-bytes",
+		Usage: "maximum number of bytes to send in a response (use 0 for no limit)",
+		Value: "100MiB",
+	},
 }
 
 type AnnounceType string
@@ -44,11 +56,13 @@ const (
 )
 
 type Config struct {
-	Cars       []string
-	Listen     string
-	Announce   AnnounceType
-	PublicAddr string
-	LogFile    string
+	Cars                []string
+	Listen              string
+	Announce            AnnounceType
+	PublicAddr          string
+	LogFile             string
+	MaxResponseDuration time.Duration
+	MaxResponseBytes    int64
 }
 
 func ToConfig(c *cli.Context) (Config, error) {
@@ -78,11 +92,23 @@ func ToConfig(c *cli.Context) (Config, error) {
 	publicAddr := c.String("public-addr")
 	logFile := c.String("log-file")
 
+	maxResponseDuration := c.Duration("max-response-duration")
+	var maxResponseBytes uint64
+	if c.String("max-response-bytes") != "0" {
+		var err error
+		maxResponseBytes, err = humanize.ParseBytes(c.String("max-response-bytes"))
+		if err != nil {
+			return Config{}, err
+		}
+	}
+
 	return Config{
-		Cars:       carPaths,
-		Listen:     listen,
-		Announce:   announceType,
-		PublicAddr: publicAddr,
-		LogFile:    logFile,
+		Cars:                carPaths,
+		Listen:              listen,
+		Announce:            announceType,
+		PublicAddr:          publicAddr,
+		LogFile:             logFile,
+		MaxResponseDuration: maxResponseDuration,
+		MaxResponseBytes:    int64(maxResponseBytes),
 	}, nil
 }

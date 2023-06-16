@@ -91,6 +91,9 @@ func (m *MultiReadableStorage) Get(ctx context.Context, key string) ([]byte, err
 // list, we know which store to go to first.
 
 func (m *MultiReadableStorage) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	m.lk.RLock()
 	defer m.lk.RUnlock()
 	for _, store := range m.stores {

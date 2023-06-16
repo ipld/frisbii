@@ -3,6 +3,7 @@ module github.com/rvagg/go-frisbii
 go 1.20
 
 require (
+	github.com/dustin/go-humanize v1.0.1
 	github.com/filecoin-project/go-data-transfer/v2 v2.0.0-rc7
 	github.com/filecoin-project/lassie v0.12.2-0.20230614045620-19b6e938241c
 	github.com/hashicorp/go-multierror v1.1.1
@@ -40,7 +41,6 @@ require (
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/felixge/httpsnoop v1.0.0 // indirect
 	github.com/filecoin-project/go-address v1.1.0 // indirect

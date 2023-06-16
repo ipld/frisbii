@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	lassiehttp "github.com/filecoin-project/lassie/pkg/server/http"
 	lassietypes "github.com/filecoin-project/lassie/pkg/types"
@@ -25,20 +26,38 @@ type ErrorLogger interface {
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
 // Trustless Gateway specification.
 type HttpIpfs struct {
-	ctx       context.Context
-	logWriter io.Writer
-	lsys      linking.LinkSystem
+	ctx                 context.Context
+	logWriter           io.Writer
+	lsys                linking.LinkSystem
+	maxResponseDuration time.Duration
+	maxResponseBytes    int64
 }
 
-func NewHttpIpfs(ctx context.Context, logWriter io.Writer, lsys linking.LinkSystem) *HttpIpfs {
+func NewHttpIpfs(
+	ctx context.Context,
+	logWriter io.Writer,
+	lsys linking.LinkSystem,
+	maxResponseDuration time.Duration,
+	maxResponseBytes int64,
+) *HttpIpfs {
+
 	return &HttpIpfs{
-		ctx:       ctx,
-		logWriter: logWriter,
-		lsys:      lsys,
+		ctx:                 ctx,
+		logWriter:           logWriter,
+		lsys:                lsys,
+		maxResponseDuration: maxResponseDuration,
+		maxResponseBytes:    maxResponseBytes,
 	}
 }
 
 func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	ctx := hi.ctx
+	if hi.maxResponseDuration > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, hi.maxResponseDuration)
+		defer cancel()
+	}
+
 	logError := func(status int, msg string) {
 		if lrw, ok := res.(ErrorLogger); ok {
 			lrw.LogError(status, msg)
@@ -101,22 +120,19 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
 
 	bytesWrittenCh := make(chan struct{})
-	writer := &onFirstWriteWriter{
-		w: res,
-		fn: func() {
-			// called once we start writing blocks into the CAR (on the first Put())
-			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
-			res.Header().Set("Accept-Ranges", lassiehttp.ResponseAcceptRangesHeader)
-			res.Header().Set("Cache-Control", lassiehttp.ResponseCacheControlHeader)
-			res.Header().Set("Content-Type", lassiehttp.ResponseContentTypeHeader)
-			res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
-			res.Header().Set("X-Content-Type-Options", "nosniff")
-			res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
-			close(bytesWrittenCh)
-		},
-	}
+	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
+		// called once we start writing blocks into the CAR (on the first Put())
+		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+		res.Header().Set("Accept-Ranges", lassiehttp.ResponseAcceptRangesHeader)
+		res.Header().Set("Cache-Control", lassiehttp.ResponseCacheControlHeader)
+		res.Header().Set("Content-Type", lassiehttp.ResponseContentTypeHeader)
+		res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
+		res.Header().Set("X-Content-Type-Options", "nosniff")
+		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
+		close(bytesWrittenCh)
+	})
 
-	if err := StreamCar(hi.ctx, hi.lsys, rootCid, selNode, writer, includeDupes); err != nil {
+	if err := StreamCar(ctx, hi.lsys, rootCid, selNode, writer, includeDupes); err != nil {
 		logError(http.StatusInternalServerError, err.Error())
 		select {
 		case <-bytesWrittenCh:
@@ -131,18 +147,30 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-var _ io.Writer = (*onFirstWriteWriter)(nil)
+var _ io.Writer = (*ipfsResponseWriter)(nil)
 
-type onFirstWriteWriter struct {
+type ipfsResponseWriter struct {
 	w         io.Writer
 	fn        func()
 	byteCount int
 	once      sync.Once
+	maxBytes  int64
 }
 
-func (w *onFirstWriteWriter) Write(p []byte) (int, error) {
+func newIpfsResponseWriter(w io.Writer, maxBytes int64, fn func()) *ipfsResponseWriter {
+	return &ipfsResponseWriter{
+		w:        w,
+		maxBytes: maxBytes,
+		fn:       fn,
+	}
+}
+
+func (w *ipfsResponseWriter) Write(p []byte) (int, error) {
 	w.once.Do(w.fn)
 	w.byteCount += len(p)
+	if w.maxBytes > 0 && int64(w.byteCount) > w.maxBytes {
+		return 0, fmt.Errorf("response too large: %d bytes", w.byteCount)
+	}
 	return w.w.Write(p)
 }
 
