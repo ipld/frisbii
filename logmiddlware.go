@@ -13,6 +13,7 @@ import (
 )
 
 var _ http.Handler = (*LogMiddleware)(nil)
+var _ ErrorLogger = (*LoggingResponseWriter)(nil)
 
 // LogMiddlware is a middleware that logs requests to the given io.Writer.
 // it wraps requests in a LoggingResponseWriter that can be used to log
@@ -65,7 +66,7 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 	}
 	fmt.Fprintf(
 		w.logWriter,
-		"%s %s %s \"%s\" %d %d %d %s\n",
+		"%s %s %s \"%s\" %d %d %d %s %s\n",
 		time.Now().Format(time.RFC3339),
 		remoteAddr,
 		w.req.Method,
@@ -73,6 +74,7 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 		status,
 		duration.Milliseconds(),
 		bytes,
+		strconv.Quote(w.req.UserAgent()),
 		strconv.Quote(msg),
 	)
 }

@@ -18,6 +18,10 @@ import (
 
 var _ http.Handler = (*HttpIpfs)(nil)
 
+type ErrorLogger interface {
+	LogError(status int, msg string)
+}
+
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
 // Trustless Gateway specification.
 type HttpIpfs struct {
@@ -36,7 +40,7 @@ func NewHttpIpfs(ctx context.Context, logWriter io.Writer, lsys linking.LinkSyst
 
 func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	logError := func(status int, msg string) {
-		if lrw, ok := res.(*LoggingResponseWriter); ok {
+		if lrw, ok := res.(ErrorLogger); ok {
 			lrw.LogError(status, msg)
 		} else {
 			logger.Debug("Error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, msg)
