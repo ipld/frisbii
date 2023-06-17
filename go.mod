@@ -1,4 +1,4 @@
-module github.com/ipld/go-frisbii
+module github.com/ipld/frisbii
 
 go 1.20
 

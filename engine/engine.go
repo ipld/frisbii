@@ -15,7 +15,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	dsn "github.com/ipfs/go-datastore/namespace"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipld/go-frisbii/httpsync"
+	"github.com/ipld/frisbii/httpsync"
 	"github.com/ipld/go-ipld-prime"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/announce"

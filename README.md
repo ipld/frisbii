@@ -1,4 +1,4 @@
-# go-frisbii
+# Frisbii
 
 **An experimental minimal IPLD data provider for the IPFS network**
 
@@ -39,7 +39,7 @@ Using `--anounce=roots` will announce the roots of all CARs loaded by Frisbii to
 
 ## Library usage
 
-See https://pkg.go.dev/github.com/ipld/go-frisbii for full documentation.
+See https://pkg.go.dev/github.com/ipld/frisbii for full documentation.
 
 `NewFrisbiiServer()` can be used to create a new server given a `LinkSystem` as a source of IPLD data.
 

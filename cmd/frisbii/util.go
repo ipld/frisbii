@@ -8,9 +8,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/ipld/frisbii"
 	car "github.com/ipld/go-car/v2"
 	carstorage "github.com/ipld/go-car/v2/storage"
-	"github.com/ipld/go-frisbii"
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
