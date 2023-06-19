@@ -8,9 +8,17 @@ Content routing, when enabled, is delegated to the [Interpletary Network Indexer
 
 Frisbii does not directly interact with the IPFS DHT, which limits discovery potential for clients which primarily use the DHT. However, with increasing reliance on IPNI for content discovery, this will change over time. In particular, **[Lassie](https://github.com/filecoin-project/lassie)**, a universal IPFS and Filecoin retrieval client, relies on IPNI for content discovery.
 
-## CLI Usage
+## Installation
 
-Basic usage:
+To install the latest version of Frisbii, run:
+
+```
+go install github.com/ipld/frisbii/cmd/frisbii@latest
+```
+
+Alternatively, binaries are available for download on the [releases page](https://github.com/ipld/frisbii/releases).
+
+## Usage
 
 ```
 frisbii --announce=roots --car=/path/to/file.car
