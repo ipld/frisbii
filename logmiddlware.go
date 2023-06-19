@@ -79,7 +79,17 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 	)
 }
 
-func (w *LoggingResponseWriter) LogError(status int, msg string) {
+func (w *LoggingResponseWriter) LogError(status int, err error) {
+	msg := err.Error()
+	// unwrap error and find the msg at the bottom error
+	for {
+		if e := errors.Unwrap(err); e != nil {
+			msg = e.Error()
+			err = e
+		} else {
+			break
+		}
+	}
 	w.Log(status, 0, 0, msg)
 	w.status = status
 	if w.bytes == 0 {
