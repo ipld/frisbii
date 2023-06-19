@@ -1,0 +1,24 @@
+builds:
+  - main: ./cmd/frisbii
+    binary: frisbii
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - 'amd64'
+      - 'arm64'
+    # Change to a static date for checksum verification. See https://goreleaser.com/customization/builds/#reproducible-builds.
+    mod_timestamp: '{{.CommitTimestamp}}'
+universal_binaries:
+  - replace: true
+archives:
+  - format_overrides:
+    - goos: windows
+      format: zip
+    - goos: darwin
+      format: zip
+release:
+  mode: keep-existing
+changelog:
+  skip: true
