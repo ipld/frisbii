@@ -20,7 +20,7 @@ import (
 var _ http.Handler = (*HttpIpfs)(nil)
 
 type ErrorLogger interface {
-	LogError(status int, msg string)
+	LogError(status int, err error)
 }
 
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
@@ -58,11 +58,11 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		defer cancel()
 	}
 
-	logError := func(status int, msg string) {
+	logError := func(status int, err error) {
 		if lrw, ok := res.(ErrorLogger); ok {
-			lrw.LogError(status, msg)
+			lrw.LogError(status, err)
 		} else {
-			logger.Debug("Error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, msg)
+			logger.Debug("Error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
 		}
 	}
 
@@ -75,26 +75,26 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		break
 	default:
 		res.Header().Add("Allow", http.MethodGet)
-		logError(http.StatusMethodNotAllowed, "method not allowed")
+		logError(http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
 	}
 
 	// check if CID path param is missing
 	if path.Len() == 0 {
 		// not a valid path to hit
-		logError(http.StatusNotFound, "not found")
+		logError(http.StatusNotFound, errors.New("not found"))
 		return
 	}
 
 	includeDupes, err := lassiehttp.CheckFormat(req)
 	if err != nil {
-		logError(http.StatusBadRequest, err.Error())
+		logError(http.StatusBadRequest, err)
 		return
 	}
 
 	fileName, err := lassiehttp.ParseFilename(req)
 	if err != nil {
-		logError(http.StatusBadRequest, err.Error())
+		logError(http.StatusBadRequest, err)
 		return
 	}
 
@@ -103,13 +103,13 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	cidSeg, path = path.Shift()
 	rootCid, err := cid.Parse(cidSeg.String())
 	if err != nil {
-		logError(http.StatusInternalServerError, "failed to parse CID path parameter")
+		logError(http.StatusInternalServerError, errors.New("failed to parse CID path parameter"))
 		return
 	}
 
 	dagScope, err := lassiehttp.ParseScope(req)
 	if err != nil {
-		logError(http.StatusBadRequest, err.Error())
+		logError(http.StatusBadRequest, err)
 		return
 	}
 
@@ -133,7 +133,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err := StreamCar(ctx, hi.lsys, rootCid, selNode, writer, includeDupes); err != nil {
-		logError(http.StatusInternalServerError, err.Error())
+		logError(http.StatusInternalServerError, err)
 		select {
 		case <-bytesWrittenCh:
 			logger.Debugw("unclean close", "cid", rootCid, "err", err)
@@ -143,7 +143,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			return
 		default:
 		}
-		return
+		logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
 	}
 }
 
