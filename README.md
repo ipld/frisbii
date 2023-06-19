@@ -16,6 +16,8 @@ Basic usage:
 frisbii --announce=roots --car=/path/to/file.car
 ```
 
+Note that for announcements to be successful, Frisbii must be able to determine its public address. You may need to supply a `--listen` argument with a public address, or use `--public-addr` to override the address that Frisbii determines for itself.
+
 Full argument list:
 
 * `--car` - path to one or more CAR files to serve, this can be a plain path, a glob path to match multiple files, and `--car` can be supplied multiple times.
@@ -25,6 +27,7 @@ Full argument list:
 * `--log-file` - path to file to append HTTP request and error logs to. Defaults to `stdout`.
 * `--max-response-duration` - maximum duration to spend responding to a request. Defaults to `5m`.
 * `--max-response-bytes` - maximum size of a response from IPNI. Defaults to `100MiB`.
+* `--verbose` - enable verbose logging. Defaults to `false`. Same as using `GOLOG_LOG_LEVEL=debug` as an environment variable. `GOLOG_LOG_LEVEL` can be used for more fine-grained control of log output.
 * `--help` - show help.
 
 ### CAR files

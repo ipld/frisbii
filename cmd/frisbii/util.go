@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path"
@@ -33,7 +34,13 @@ func loadCar(multicar *frisbii.MultiReadableStorage, carPath string) error {
 	return nil
 }
 
-func getListenAddr(serverAddr string, publicAddr string) (multiaddr.Multiaddr, error) {
+type ListenAddr struct {
+	Maddr       multiaddr.Multiaddr
+	Url         *url.URL
+	Unspecified bool
+}
+
+func getListenAddr(serverAddr string, publicAddr string) (ListenAddr, error) {
 	frisbiiAddr := "http://" + serverAddr
 	if publicAddr != "" {
 		frisbiiAddr = publicAddr
@@ -45,16 +52,33 @@ func getListenAddr(serverAddr string, publicAddr string) (multiaddr.Multiaddr, e
 		// try as multiaddr
 		frisbiiListenMaddr, err = multiaddr.NewMultiaddr(frisbiiAddr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse public-addr [%s] as URL or multiaddr", frisbiiAddr)
+			return ListenAddr{}, fmt.Errorf("failed to parse public-addr [%s] as URL or multiaddr", frisbiiAddr)
 		}
 	} else {
 		frisbiiListenMaddr, err = maurl.FromURL(frisbiiUrl)
 		if err != nil {
-			return nil, err
+			return ListenAddr{}, err
 		}
 	}
 
-	return frisbiiListenMaddr, nil
+	u, err := maurl.ToURL(frisbiiListenMaddr)
+	if err != nil {
+		return ListenAddr{}, err
+	}
+	la := ListenAddr{
+		Maddr: frisbiiListenMaddr,
+		Url:   u,
+	}
+
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		return ListenAddr{}, err
+	}
+	if ipa := net.ParseIP(host); ipa != nil && ipa.IsUnspecified() {
+		la.Unspecified = true
+	}
+
+	return la, nil
 }
 
 func loadPrivKey(confDir string) (crypto.PrivKey, peer.ID, error) {

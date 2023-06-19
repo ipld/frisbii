@@ -44,6 +44,10 @@ var Flags = []cli.Flag{
 		Usage: "maximum number of bytes to send in a response (use 0 for no limit)",
 		Value: "100MiB",
 	},
+	&cli.BoolFlag{
+		Name:  "verbose",
+		Usage: "enable verbose debug logging to stderr, same as setting GOLOG_LOG_LEVEL=DEBUG",
+	},
 }
 
 type AnnounceType string
@@ -61,6 +65,7 @@ type Config struct {
 	LogFile             string
 	MaxResponseDuration time.Duration
 	MaxResponseBytes    int64
+	Verbose             bool
 }
 
 func ToConfig(c *cli.Context) (Config, error) {
@@ -89,6 +94,7 @@ func ToConfig(c *cli.Context) (Config, error) {
 	listen := c.String("listen")
 	publicAddr := c.String("public-addr")
 	logFile := c.String("log-file")
+	verbose := c.Bool("verbose")
 
 	maxResponseDuration := c.Duration("max-response-duration")
 	var maxResponseBytes uint64
@@ -108,5 +114,6 @@ func ToConfig(c *cli.Context) (Config, error) {
 		LogFile:             logFile,
 		MaxResponseDuration: maxResponseDuration,
 		MaxResponseBytes:    int64(maxResponseBytes),
+		Verbose:             verbose,
 	}, nil
 }
