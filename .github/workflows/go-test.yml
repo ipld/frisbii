@@ -21,7 +21,7 @@ jobs:
           submodules: recursive
       - id: config
         uses: protocol/.github/.github/actions/read-config@master
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
       - name: Go information
@@ -41,7 +41,7 @@ jobs:
         if: hashFiles('./.github/actions/go-test-setup') != ''
       - name: Run tests
         if: contains(fromJSON(steps.config.outputs.json).skipOSes, matrix.os) == false
-        uses: protocol/multiple-go-modules@v1.4
+        uses: protocol/multiple-go-modules@v1.2
         with:
           # Use -coverpkg=./..., so that we include cross-package coverage.
           # If package ./A imports ./B, and ./A's tests also cover ./B,
@@ -52,7 +52,7 @@ jobs:
         if: matrix.os != 'macos' &&
           fromJSON(steps.config.outputs.json).skip32bit != true &&
           contains(fromJSON(steps.config.outputs.json).skipOSes, matrix.os) == false
-        uses: protocol/multiple-go-modules@v1.4
+        uses: protocol/multiple-go-modules@v1.2
         env:
           GOARCH: 386
         with:
@@ -63,14 +63,14 @@ jobs:
         # speed things up. Windows and OSX VMs are slow
         if: matrix.os == 'ubuntu' &&
           contains(fromJSON(steps.config.outputs.json).skipOSes, matrix.os) == false
-        uses: protocol/multiple-go-modules@v1.4
+        uses: protocol/multiple-go-modules@v1.2
         with:
           run: go test -v -race ./...
       - name: Collect coverage files
         shell: bash
         run: echo "COVERAGES=$(find . -type f -name 'module-coverage.txt' | tr -s '\n' ',' | sed 's/,$//')" >> $GITHUB_ENV
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d # v3.1.4
+        uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70 # v3.1.1
         with:
           files: '${{ env.COVERAGES }}'
           env_vars: OS=${{ matrix.os }}, GO=${{ matrix.go }}
