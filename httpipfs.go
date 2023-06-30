@@ -112,6 +112,20 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	byteRange, err := trustlesshttp.ParseByteRange(req)
+	if err != nil {
+		logError(http.StatusBadRequest, err)
+		return
+	}
+
+	request := trustlessutils.Request{
+		Root:       rootCid,
+		Path:       path.String(),
+		Scope:      dagScope,
+		Bytes:      byteRange,
+		Duplicates: includeDupes,
+	}
+
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
 	}
@@ -122,13 +136,13 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 		res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
 		res.Header().Set("Content-Type", trustlesshttp.ResponseContentTypeHeader(includeDupes))
-		res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
+		res.Header().Set("Etag", request.Etag())
 		res.Header().Set("X-Content-Type-Options", "nosniff")
 		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
 		close(bytesWrittenCh)
 	})
 
-	if err := StreamCar(ctx, hi.lsys, rootCid, path, dagScope, writer, includeDupes); err != nil {
+	if err := StreamCar(ctx, hi.lsys, writer, request); err != nil {
 		logError(http.StatusInternalServerError, err)
 		select {
 		case <-bytesWrittenCh:
@@ -168,15 +182,6 @@ func (w *ipfsResponseWriter) Write(p []byte) (int, error) {
 		return 0, fmt.Errorf("response too large: %d bytes", w.byteCount)
 	}
 	return w.w.Write(p)
-}
-
-func etag(root cid.Cid, path string, scope trustlessutils.DagScope, duplicates bool) string {
-	return trustlessutils.Request{
-		Root:       root,
-		Path:       path,
-		Scope:      scope,
-		Duplicates: duplicates,
-	}.Etag()
 }
 
 // closeWithUnterminatedChunk attempts to take control of the the http conn and terminate the stream early

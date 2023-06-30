@@ -16,7 +16,6 @@ import (
 	"github.com/ipld/go-trustless-utils/traversal"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/go-car/v2"
 	carstorage "github.com/ipld/go-car/v2/storage"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -30,28 +29,23 @@ import (
 func StreamCar(
 	ctx context.Context,
 	requestLsys linking.LinkSystem,
-	rootCid cid.Cid,
-	path datamodel.Path,
-	dagScope trustlessutils.DagScope,
 	out io.Writer,
-	duplicates bool,
+	request trustlessutils.Request,
 ) error {
-	carWriter, err := carstorage.NewWritable(out, []cid.Cid{rootCid}, car.WriteAsCarV1(true), car.AllowDuplicatePuts(duplicates))
+	carWriter, err := carstorage.NewWritable(out, []cid.Cid{request.Root}, car.WriteAsCarV1(true), car.AllowDuplicatePuts(request.Duplicates))
 	if err != nil {
 		return fmt.Errorf("failed to create car writer: %w", err)
 	}
 
 	requestLsys.StorageReadOpener = carPipe(requestLsys.StorageReadOpener, carWriter)
 
-	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
-
-	cfg := traversal.Config{Root: rootCid, Selector: selNode}
+	cfg := traversal.Config{Root: request.Root, Selector: request.Selector()}
 	lastPath, err := cfg.Traverse(ctx, requestLsys, nil)
 	if err != nil {
 		return err
 	}
 
-	if err := traversal.CheckPath(path, lastPath); err != nil {
+	if err := traversal.CheckPath(datamodel.ParsePath(request.Path), lastPath); err != nil {
 		logger.Warnf("failed to traverse full requested path: %s", err)
 	}
 
