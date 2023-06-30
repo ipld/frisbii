@@ -137,7 +137,7 @@ func TestStreamCar(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 			var buf bytes.Buffer
-			err := frisbii.StreamCar(ctx, tc.lsys, tc.root, tc.path, tc.scope, &buf, false)
+			err := frisbii.StreamCar(ctx, tc.lsys, &buf, trustlessutils.Request{Root: tc.root, Path: tc.path.String(), Scope: tc.scope, Duplicates: false})
 			if tc.expectedErr != "" {
 				req.EqualError(err, tc.expectedErr)
 			} else {
