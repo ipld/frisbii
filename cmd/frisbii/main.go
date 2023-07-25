@@ -100,7 +100,7 @@ func action(c *cli.Context) error {
 	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)
 	lsys.SetReadStorage(multicar)
 
-	server, err := frisbii.NewFrisbiiServer(ctx, logWriter, lsys, config.MaxResponseDuration, config.MaxResponseBytes, config.Listen)
+	server, err := frisbii.NewFrisbiiServer(ctx, logWriter, lsys, config.MaxResponseDuration, config.MaxResponseBytes, config.Listen, privKey)
 	if err != nil {
 		return err
 	}

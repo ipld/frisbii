@@ -16,6 +16,7 @@ import (
 	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
+	"github.com/libp2p/go-libp2p/core/crypto"
 )
 
 var _ http.Handler = (*HttpIpfs)(nil)
@@ -38,6 +39,7 @@ type HttpIpfs struct {
 	lsys                linking.LinkSystem
 	maxResponseDuration time.Duration
 	maxResponseBytes    int64
+	privKey             crypto.PrivKey
 }
 
 func NewHttpIpfs(
@@ -46,6 +48,7 @@ func NewHttpIpfs(
 	lsys linking.LinkSystem,
 	maxResponseDuration time.Duration,
 	maxResponseBytes int64,
+	privKey crypto.PrivKey,
 ) *HttpIpfs {
 
 	return &HttpIpfs{
@@ -54,6 +57,7 @@ func NewHttpIpfs(
 		lsys:                lsys,
 		maxResponseDuration: maxResponseDuration,
 		maxResponseBytes:    maxResponseBytes,
+		privKey:             privKey,
 	}
 }
 
@@ -136,7 +140,12 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusInternalServerError, err)
 		return
 	}
-	res.Header().Set("X-Signature", string(b))
+	sigSigned, err := hi.privKey.Sign(b)
+	if err != nil {
+		logError(http.StatusInternalServerError, err)
+		return
+	}
+	res.Header().Set("X-Signature", string(sigSigned))
 
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {

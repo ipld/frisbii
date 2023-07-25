@@ -10,6 +10,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ipld/go-ipld-prime/linking"
@@ -34,6 +35,7 @@ type FrisbiiServer struct {
 	listener        net.Listener
 	mux             *http.ServeMux
 	indexerProvider IndexerProvider
+	privKey         crypto.PrivKey
 }
 
 type IndexerProvider interface {
@@ -48,6 +50,7 @@ func NewFrisbiiServer(
 	maxResponseDuration time.Duration,
 	maxResponseBytes int64,
 	address string,
+	privKey crypto.PrivKey,
 ) (*FrisbiiServer, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -61,6 +64,7 @@ func NewFrisbiiServer(
 		maxResponseBytes:    maxResponseBytes,
 
 		listener: listener,
+		privKey:  privKey,
 	}, nil
 }
 
@@ -70,7 +74,7 @@ func (fs *FrisbiiServer) Addr() net.Addr {
 
 func (fs *FrisbiiServer) Serve() error {
 	fs.mux = http.NewServeMux()
-	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.logWriter, fs.lsys, fs.maxResponseDuration, fs.maxResponseBytes))
+	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.logWriter, fs.lsys, fs.maxResponseDuration, fs.maxResponseBytes, fs.privKey))
 	server := &http.Server{
 		Addr:        fs.Addr().String(),
 		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
