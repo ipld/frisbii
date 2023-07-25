@@ -2,6 +2,7 @@ package frisbii
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,12 @@ var _ http.Handler = (*HttpIpfs)(nil)
 
 type ErrorLogger interface {
 	LogError(status int, err error)
+}
+
+type RequestSignature struct {
+	requestId string
+	cid       string
+	protocol  string
 }
 
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
@@ -118,6 +125,18 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 
 	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
+
+	sig := RequestSignature{
+		requestId: req.Header.Get("X-Signature"),
+		cid:       rootCid.String(),
+		protocol:  "https",
+	}
+	b, err := json.Marshal(sig)
+	if err != nil {
+		logError(http.StatusInternalServerError, err)
+		return
+	}
+	res.Header().Set("X-Signature", string(b))
 
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
