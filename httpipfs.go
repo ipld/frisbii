@@ -2,6 +2,7 @@ package frisbii
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -145,7 +146,10 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusInternalServerError, err)
 		return
 	}
-	res.Header().Set("X-Request-Id", fmt.Sprintf("%s.%s", b, string(sigSigned)))
+	res.Header().Set(
+		"X-Request-Id",
+		fmt.Sprintf("%s.%s", base64.StdEncoding.EncodeToString(b), string(sigSigned)),
+	)
 
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
