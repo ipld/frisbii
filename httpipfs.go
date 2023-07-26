@@ -145,7 +145,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusInternalServerError, err)
 		return
 	}
-	res.Header().Set("X-Request-Id", string(sigSigned))
+	res.Header().Set("X-Request-Id", fmt.Sprintf("%s.%s", b, string(sigSigned)))
 
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
