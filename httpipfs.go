@@ -147,7 +147,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.Header().Set(
-		"X-Request-Id",
+		"X-Attestation",
 		fmt.Sprintf("%s.%s", base64.StdEncoding.EncodeToString(b), string(sigSigned)),
 	)
 
