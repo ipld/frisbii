@@ -131,7 +131,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
 
 	sig := RequestSignature{
-		requestId: req.Header.Get("X-Signature"),
+		requestId: req.Header.Get("X-Request-Id"),
 		cid:       rootCid.String(),
 		protocol:  "https",
 	}
@@ -145,7 +145,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusInternalServerError, err)
 		return
 	}
-	res.Header().Set("X-Signature", string(sigSigned))
+	res.Header().Set("X-Request-Id", string(sigSigned))
 
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
