@@ -149,7 +149,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set(
 		"X-Attestation",
 		fmt.Sprintf(
-			"%s.%s",
+			"\"%s.%s\"",
 			base64.StdEncoding.EncodeToString(b),
 			base64.StdEncoding.EncodeToString(sigSigned),
 		),
