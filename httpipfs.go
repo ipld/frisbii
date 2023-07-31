@@ -27,9 +27,9 @@ type ErrorLogger interface {
 }
 
 type RequestSignature struct {
-	requestId string
-	cid       string
-	protocol  string
+	RequestId string `json:"requestId"`
+	Cid       string `json:"cid"`
+	Protocol  string `json:"protocol"`
 }
 
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
@@ -132,9 +132,9 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
 
 	sig := RequestSignature{
-		requestId: req.Header.Get("X-Request-Id"),
-		cid:       rootCid.String(),
-		protocol:  "https",
+		RequestId: req.Header.Get("X-Request-Id"),
+		Cid:       rootCid.String(),
+		Protocol:  "https",
 	}
 	b, err := json.Marshal(sig)
 	if err != nil {
@@ -148,7 +148,11 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set(
 		"X-Attestation",
-		fmt.Sprintf("%s.%s", base64.StdEncoding.EncodeToString(b), string(sigSigned)),
+		fmt.Sprintf(
+			"%s.%s",
+			base64.StdEncoding.EncodeToString(b),
+			base64.StdEncoding.EncodeToString(sigSigned),
+		),
 	)
 
 	bytesWrittenCh := make(chan struct{})
