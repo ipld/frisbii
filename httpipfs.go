@@ -146,13 +146,10 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusInternalServerError, err)
 		return
 	}
-	res.Header().Set(
-		"X-Attestation",
-		fmt.Sprintf(
-			"\"%s.%s\"",
-			base64.StdEncoding.EncodeToString(b),
-			base64.StdEncoding.EncodeToString(sigSigned),
-		),
+	attestation := fmt.Sprintf(
+		"\"%s.%s\"",
+		base64.StdEncoding.EncodeToString(b),
+		base64.StdEncoding.EncodeToString(sigSigned),
 	)
 
 	bytesWrittenCh := make(chan struct{})
@@ -165,6 +162,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
 		res.Header().Set("X-Content-Type-Options", "nosniff")
 		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
+		res.Header().Add("Trailer", "X-Attestation")
 		close(bytesWrittenCh)
 	})
 
@@ -181,6 +179,8 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 		logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
 	}
+
+	res.Header().Set("X-Attestation", attestation)
 }
 
 var _ io.Writer = (*ipfsResponseWriter)(nil)
