@@ -34,9 +34,7 @@ func (lm *LogMiddleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	lres := NewLoggingResponseWriter(res, req, lm.logWriter)
 	start := time.Now()
 	defer func() {
-		if lres.status == http.StatusOK {
-			lres.Log(http.StatusOK, time.Since(start), lres.bytes, "")
-		}
+		lres.Log(lres.status, time.Since(start), lres.bytes, "")
 	}()
 	lm.next.ServeHTTP(lres, req)
 }
@@ -49,6 +47,7 @@ type LoggingResponseWriter struct {
 	req       *http.Request
 	status    int
 	bytes     int
+	wrote     bool
 }
 
 func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWriter io.Writer) *LoggingResponseWriter {
@@ -60,6 +59,10 @@ func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWrite
 }
 
 func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes int, msg string) {
+	if w.wrote {
+		return
+	}
+	w.wrote = true
 	remoteAddr := w.req.RemoteAddr
 	if ss := strings.Split(remoteAddr, ":"); len(ss) > 0 {
 		remoteAddr = ss[0]
