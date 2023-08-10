@@ -13,7 +13,7 @@ require (
 	github.com/ipfs/go-unixfsnode v1.7.3
 	github.com/ipld/go-car/v2 v2.10.1
 	github.com/ipld/go-codec-dagpb v1.6.0
-	github.com/ipld/go-ipld-prime v0.20.1-0.20230613110822-3142e1304e55
+	github.com/ipld/go-ipld-prime v0.21.1-0.20230810111002-bdf990edcdeb
 	github.com/ipni/go-libipni v0.3.4
 	github.com/ipni/index-provider v0.13.5
 	github.com/libp2p/go-libp2p v0.29.2
@@ -22,6 +22,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/term v0.10.0
+	lukechampine.com/blake3 v1.2.1
 )
 
 require (
@@ -172,5 +173,4 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	lukechampine.com/blake3 v1.2.1 // indirect
 )
