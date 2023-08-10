@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -132,6 +133,12 @@ func action(c *cli.Context) error {
 			return err
 		}
 
+		httpath, err := multiaddr.NewComponent("httpath", url.PathEscape(IndexerHandlerPath))
+		if err != nil {
+			return err
+		}
+		announceAddr := multiaddr.Join(frisbiiListenAddr.Maddr, httpath)
+
 		engine, err := engine.New(
 			engine.WithPrivateKey(privKey),
 			engine.WithProvider(peer.AddrInfo{ID: id, Addrs: []multiaddr.Multiaddr{frisbiiListenAddr.Maddr}}),
@@ -140,7 +147,7 @@ func action(c *cli.Context) error {
 			engine.WithHttpPublisherWithoutServer(),
 			engine.WithHttpPublisherHandlerPath(IndexerHandlerPath),
 			engine.WithHttpPublisherListenAddr(listenUrl.Host),
-			engine.WithHttpPublisherAnnounceAddr(frisbiiListenAddr.Maddr.String()),
+			engine.WithHttpPublisherAnnounceAddr(announceAddr.String()),
 		)
 		if err != nil {
 			return err
