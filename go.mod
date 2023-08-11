@@ -13,7 +13,7 @@ require (
 	github.com/ipfs/go-unixfsnode v1.7.3
 	github.com/ipld/go-car/v2 v2.10.1
 	github.com/ipld/go-codec-dagpb v1.6.0
-	github.com/ipld/go-ipld-prime v0.20.1-0.20230613110822-3142e1304e55
+	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipni/go-libipni v0.3.4
 	github.com/ipni/index-provider v0.13.5
 	github.com/libp2p/go-libp2p v0.29.2

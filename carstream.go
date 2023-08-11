@@ -7,6 +7,7 @@ import (
 	"io"
 
 	// codecs we care about
+	"github.com/filecoin-project/lassie/pkg/types"
 	dagpb "github.com/ipld/go-codec-dagpb"
 	_ "github.com/ipld/go-ipld-prime/codec/cbor"
 	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
@@ -16,6 +17,7 @@ import (
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/go-car/v2"
 	carstorage "github.com/ipld/go-car/v2/storage"
 	"github.com/ipld/go-ipld-prime/datamodel"
@@ -29,7 +31,17 @@ var protoChooser = dagpb.AddSupportToChooser(basicnode.Chooser)
 
 // StreamCar streams a DAG in CARv1 format to the given writer, using the given
 // selector.
-func StreamCar(ctx context.Context, requestLsys linking.LinkSystem, rootCid cid.Cid, selNode datamodel.Node, out io.Writer, duplicates bool) error {
+func StreamCar(
+	ctx context.Context,
+	requestLsys linking.LinkSystem,
+	rootCid cid.Cid,
+	path datamodel.Path,
+	dagScope types.DagScope,
+	out io.Writer,
+	duplicates bool,
+) error {
+
+	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
 	sel, err := selector.CompileSelector(selNode)
 	if err != nil {
 		return fmt.Errorf("failed to compile selector: %w", err)
@@ -53,12 +65,30 @@ func StreamCar(ctx context.Context, requestLsys linking.LinkSystem, rootCid cid.
 		LinkSystem:                     requestLsys,
 		LinkTargetNodePrototypeChooser: protoChooser,
 	}}
-	if err := progress.WalkAdv(rootNode, sel, visitNoop); err != nil {
+	var lastPath datamodel.Path
+	visitor := func(p traversal.Progress, n datamodel.Node, vr traversal.VisitReason) error {
+		lastPath = p.Path
+		return nil
+	}
+	if err := progress.WalkAdv(rootNode, sel, visitor); err != nil {
 		return fmt.Errorf("failed to complete traversal: %w", err)
 	}
 	if erro.err != nil {
 		return fmt.Errorf("block load failed during traversal: %w", erro.err)
 	}
+	for path.Len() > 0 {
+		if lastPath.Len() == 0 {
+			return fmt.Errorf("failed to traverse full path, missed: [%s]", path.String())
+		}
+		var seg, lastSeg datamodel.PathSegment
+		seg, path = path.Shift()
+		lastSeg, lastPath = lastPath.Shift()
+		if seg != lastSeg {
+			return fmt.Errorf("unexpected path segment visit, got [%s], expected [%s]", lastSeg.String(), seg.String())
+		}
+	}
+	// having lastPath.Len()>0 is fine, it may be due to an "all" or "entity"
+	// doing an explore-all on the remainder of the DAG after the path.
 
 	return nil
 }
@@ -100,5 +130,3 @@ func loadNode(ctx context.Context, rootCid cid.Cid, lsys linking.LinkSystem) (da
 	}
 	return rootNode, nil
 }
-
-func visitNoop(p traversal.Progress, n datamodel.Node, vr traversal.VisitReason) error { return nil }

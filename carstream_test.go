@@ -7,9 +7,11 @@ import (
 	"io"
 	"testing"
 
+	"github.com/filecoin-project/lassie/pkg/types"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	gstestutil "github.com/ipfs/go-graphsync/testutil"
+	"github.com/ipfs/go-unixfsnode"
 	unixfs "github.com/ipfs/go-unixfsnode/testutil"
 	"github.com/ipld/frisbii"
 	"github.com/ipld/go-car/v2"
@@ -17,7 +19,6 @@ import (
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
-	selectorparse "github.com/ipld/go-ipld-prime/traversal/selector/parse"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,17 +51,19 @@ func TestStreamCar(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name     string
-		selector datamodel.Node
-		root     cid.Cid
-		lsys     linking.LinkSystem
-		validate func(t *testing.T, r io.Reader)
+		name        string
+		path        datamodel.Path
+		scope       types.DagScope
+		root        cid.Cid
+		lsys        linking.LinkSystem
+		validate    func(t *testing.T, r io.Reader)
+		expectedErr string
 	}{
 		{
-			name:     "chain: all blocks",
-			selector: selectorparse.CommonSelector_ExploreAllRecursively,
-			root:     tbc.TipLink.(cidlink.Link).Cid,
-			lsys:     chainLsys,
+			name:  "chain: all blocks",
+			scope: types.DagScopeAll,
+			root:  tbc.TipLink.(cidlink.Link).Cid,
+			lsys:  chainLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
 				require.Equal(t, tbc.TipLink.(cidlink.Link).Cid, root)
@@ -68,10 +71,10 @@ func TestStreamCar(t *testing.T) {
 			},
 		},
 		{
-			name:     "chain: just root",
-			selector: selectorparse.CommonSelector_MatchPoint,
-			root:     tbc.TipLink.(cidlink.Link).Cid,
-			lsys:     chainLsys,
+			name:  "chain: just root",
+			scope: types.DagScopeBlock,
+			root:  tbc.TipLink.(cidlink.Link).Cid,
+			lsys:  chainLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
 				require.Equal(t, tbc.TipLink.(cidlink.Link).Cid, root)
@@ -79,10 +82,10 @@ func TestStreamCar(t *testing.T) {
 			},
 		},
 		{
-			name:     "unixfs file",
-			selector: selectorparse.CommonSelector_ExploreAllRecursively,
-			root:     fileEnt.Root,
-			lsys:     fileLsys,
+			name:  "unixfs file",
+			scope: types.DagScopeAll,
+			root:  fileEnt.Root,
+			lsys:  fileLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
 				require.Equal(t, fileEnt.Root, root)
@@ -90,10 +93,10 @@ func TestStreamCar(t *testing.T) {
 			},
 		},
 		{
-			name:     "unixfs directory",
-			selector: selectorparse.CommonSelector_ExploreAllRecursively,
-			root:     dirEnt.Root,
-			lsys:     dirLsys,
+			name:  "unixfs directory",
+			scope: types.DagScopeAll,
+			root:  dirEnt.Root,
+			lsys:  dirLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
 				require.Equal(t, dirEnt.Root, root)
@@ -101,15 +104,23 @@ func TestStreamCar(t *testing.T) {
 			},
 		},
 		{
-			name:     "unixfs sharded directory",
-			selector: selectorparse.CommonSelector_ExploreAllRecursively,
-			root:     shardedDirEnt.Root,
-			lsys:     shardedDirLsys,
+			name:  "unixfs sharded directory",
+			scope: types.DagScopeAll,
+			root:  shardedDirEnt.Root,
+			lsys:  shardedDirLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
 				require.Equal(t, shardedDirEnt.Root, root)
 				require.ElementsMatch(t, entCids(shardedDirEnt), blkCids(blks))
 			},
+		},
+		{
+			name:        "unixfs sharded directory, error no such path",
+			scope:       types.DagScopeAll,
+			path:        datamodel.ParsePath(shardedDirEnt.Children[0].Path + "/nope"),
+			root:        shardedDirEnt.Root,
+			lsys:        shardedDirLsys,
+			expectedErr: "failed to traverse full path, missed: [nope]",
 		},
 	}
 
@@ -118,9 +129,13 @@ func TestStreamCar(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 			var buf bytes.Buffer
-			err := frisbii.StreamCar(ctx, tc.lsys, tc.root, tc.selector, &buf, false)
-			req.NoError(err)
-			tc.validate(t, &buf)
+			err := frisbii.StreamCar(ctx, tc.lsys, tc.root, tc.path, tc.scope, &buf, false)
+			if tc.expectedErr != "" {
+				req.EqualError(err, tc.expectedErr)
+			} else {
+				req.NoError(err)
+				tc.validate(t, &buf)
+			}
 		})
 	}
 }
@@ -169,6 +184,7 @@ func makeLsys() linking.LinkSystem {
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.SetReadStorage(store)
 	lsys.SetWriteStorage(store)
+	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)
 	return lsys
 }
 
