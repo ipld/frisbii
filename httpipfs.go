@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
-	lassiehttp "github.com/filecoin-project/lassie/pkg/server/http"
+	lassiehttp "github.com/filecoin-project/lassie/pkg/httputil"
+	"github.com/filecoin-project/lassie/pkg/httputil/metadata"
+	"github.com/filecoin-project/lassie/pkg/types"
 	lassietypes "github.com/filecoin-project/lassie/pkg/types"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-unixfsnode"
-	"github.com/ipld/frisbii/metadata"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	mh "github.com/multiformats/go-multihash"
@@ -89,7 +90,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	includeDupes, err := lassiehttp.CheckFormat(req)
+	includeDupes, includeMeta, err := lassiehttp.CheckFormat(req)
 	if err != nil {
 		logError(http.StatusBadRequest, err)
 		return
@@ -116,8 +117,6 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	includeMeta := req.URL.Query().Get("meta") == "eof"
-
 	if fileName == "" {
 		fileName = fmt.Sprintf("%s%s", rootCid.String(), lassiehttp.FilenameExtCar)
 	}
@@ -130,7 +129,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 		res.Header().Set("Accept-Ranges", lassiehttp.ResponseAcceptRangesHeader)
 		res.Header().Set("Cache-Control", lassiehttp.ResponseCacheControlHeader)
-		res.Header().Set("Content-Type", lassiehttp.ResponseContentTypeHeader)
+		res.Header().Set("Content-Type", lassiehttp.RequestAcceptHeader) // instead of ResponseContentTypeHeader because we are doing meta=eof as well
 		res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
 		res.Header().Set("X-Content-Type-Options", "nosniff")
 		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
@@ -174,7 +173,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 				md.Error = &msg
 				carErr = err
 			} else {
-				md.Properties = &metadata.CarProperties{
+				md.Properties = &types.CarProperties{
 					CarBytes:          writer.(*checksumWriter).Count(),
 					DataBytes:         dataBytes,
 					BlockCount:        blockCount,
@@ -183,17 +182,9 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			}
 		}
 
-		enc, err := metadata.CarMetadata{Metadata: &md}.Serialize()
-		if err != nil {
-			if carErr != nil {
-				carErr = err
-			}
-		} else {
-			if _, err := res.Write(enc); err != nil {
-				if carErr != nil {
-					carErr = err
-				}
-			}
+		err := metadata.CarMetadata{Metadata: &md}.Serialize(res)
+		if err != nil && carErr != nil {
+			carErr = err
 		}
 	}
 
