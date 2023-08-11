@@ -12,7 +12,6 @@ import (
 	lassiehttp "github.com/filecoin-project/lassie/pkg/server/http"
 	lassietypes "github.com/filecoin-project/lassie/pkg/types"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 )
@@ -117,8 +116,6 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		fileName = fmt.Sprintf("%s%s", rootCid.String(), lassiehttp.FilenameExtCar)
 	}
 
-	selNode := unixfsnode.UnixFSPathSelectorBuilder(path.String(), dagScope.TerminalSelectorSpec(), false)
-
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
 		// called once we start writing blocks into the CAR (on the first Put())
@@ -132,7 +129,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		close(bytesWrittenCh)
 	})
 
-	if err := StreamCar(ctx, hi.lsys, rootCid, selNode, writer, includeDupes); err != nil {
+	if err := StreamCar(ctx, hi.lsys, rootCid, path, dagScope, writer, includeDupes); err != nil {
 		logError(http.StatusInternalServerError, err)
 		select {
 		case <-bytesWrittenCh:
