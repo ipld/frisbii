@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/dustin/go-humanize v1.0.1
-	github.com/filecoin-project/lassie v0.12.2-0.20230614045620-19b6e938241c
+	github.com/filecoin-project/lassie v0.14.3
 	github.com/ipfs/go-block-format v0.1.2
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-graphsync v0.14.7
