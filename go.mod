@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/dustin/go-humanize v1.0.1
-	github.com/filecoin-project/lassie v0.14.3
+	github.com/filecoin-project/lassie v0.15.0
 	github.com/ipfs/go-block-format v0.1.2
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipfs/go-graphsync v0.14.7
