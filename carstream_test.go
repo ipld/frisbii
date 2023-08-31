@@ -7,7 +7,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/filecoin-project/lassie/pkg/types"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	gstestutil "github.com/ipfs/go-graphsync/testutil"
@@ -19,6 +18,7 @@ import (
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
+	trustlessutils "github.com/ipld/go-trustless-utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +53,7 @@ func TestStreamCar(t *testing.T) {
 	testCases := []struct {
 		name        string
 		path        datamodel.Path
-		scope       types.DagScope
+		scope       trustlessutils.DagScope
 		root        cid.Cid
 		lsys        linking.LinkSystem
 		validate    func(t *testing.T, r io.Reader)
@@ -61,7 +61,7 @@ func TestStreamCar(t *testing.T) {
 	}{
 		{
 			name:  "chain: all blocks",
-			scope: types.DagScopeAll,
+			scope: trustlessutils.DagScopeAll,
 			root:  tbc.TipLink.(cidlink.Link).Cid,
 			lsys:  chainLsys,
 			validate: func(t *testing.T, r io.Reader) {
@@ -72,7 +72,7 @@ func TestStreamCar(t *testing.T) {
 		},
 		{
 			name:  "chain: just root",
-			scope: types.DagScopeBlock,
+			scope: trustlessutils.DagScopeBlock,
 			root:  tbc.TipLink.(cidlink.Link).Cid,
 			lsys:  chainLsys,
 			validate: func(t *testing.T, r io.Reader) {
@@ -83,7 +83,7 @@ func TestStreamCar(t *testing.T) {
 		},
 		{
 			name:  "unixfs file",
-			scope: types.DagScopeAll,
+			scope: trustlessutils.DagScopeAll,
 			root:  fileEnt.Root,
 			lsys:  fileLsys,
 			validate: func(t *testing.T, r io.Reader) {
@@ -94,7 +94,7 @@ func TestStreamCar(t *testing.T) {
 		},
 		{
 			name:  "unixfs directory",
-			scope: types.DagScopeAll,
+			scope: trustlessutils.DagScopeAll,
 			root:  dirEnt.Root,
 			lsys:  dirLsys,
 			validate: func(t *testing.T, r io.Reader) {
@@ -105,7 +105,7 @@ func TestStreamCar(t *testing.T) {
 		},
 		{
 			name:  "unixfs sharded directory",
-			scope: types.DagScopeAll,
+			scope: trustlessutils.DagScopeAll,
 			root:  shardedDirEnt.Root,
 			lsys:  shardedDirLsys,
 			validate: func(t *testing.T, r io.Reader) {
@@ -115,12 +115,20 @@ func TestStreamCar(t *testing.T) {
 			},
 		},
 		{
-			name:        "unixfs sharded directory, error no such path",
-			scope:       types.DagScopeAll,
-			path:        datamodel.ParsePath(shardedDirEnt.Children[0].Path + "/nope"),
-			root:        shardedDirEnt.Root,
-			lsys:        shardedDirLsys,
-			expectedErr: "failed to traverse full path, missed: [nope]",
+			// path that (probably) doesn't exist, shouldn't error but shouldn't
+			// return much (this ought to be tested better with a fixture)
+			name:  "unixfs sharded directory, no such path",
+			scope: trustlessutils.DagScopeAll,
+			path:  datamodel.ParsePath(shardedDirEnt.Children[0].Path + "/nope"),
+			root:  shardedDirEnt.Root,
+			lsys:  shardedDirLsys,
+			validate: func(t *testing.T, r io.Reader) {
+				root, blks := carToBlocks(t, r)
+				require.Equal(t, shardedDirEnt.Root, root)
+				cids := blkCids(blks)
+				require.Contains(t, cids, shardedDirEnt.Root)
+				require.NotEqual(t, len(entCids(shardedDirEnt)), cids) // shouldn't contain the full thing!
+			},
 		},
 	}
 
