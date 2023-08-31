@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	lassiehttp "github.com/filecoin-project/lassie/pkg/server/http"
-	lassietypes "github.com/filecoin-project/lassie/pkg/types"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
+	trustlessutils "github.com/ipld/go-trustless-utils"
+	trustlesshttp "github.com/ipld/go-trustless-utils/http"
 )
 
 var _ http.Handler = (*HttpIpfs)(nil)
@@ -85,13 +85,13 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	includeDupes, err := lassiehttp.CheckFormat(req)
+	includeDupes, err := trustlesshttp.CheckFormat(req)
 	if err != nil {
 		logError(http.StatusBadRequest, err)
 		return
 	}
 
-	fileName, err := lassiehttp.ParseFilename(req)
+	fileName, err := trustlesshttp.ParseFilename(req)
 	if err != nil {
 		logError(http.StatusBadRequest, err)
 		return
@@ -106,23 +106,22 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	dagScope, err := lassiehttp.ParseScope(req)
+	dagScope, err := trustlesshttp.ParseScope(req)
 	if err != nil {
 		logError(http.StatusBadRequest, err)
 		return
 	}
 
 	if fileName == "" {
-		fileName = fmt.Sprintf("%s%s", rootCid.String(), lassiehttp.FilenameExtCar)
+		fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
 	}
 
 	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
 		// called once we start writing blocks into the CAR (on the first Put())
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
-		res.Header().Set("Accept-Ranges", lassiehttp.ResponseAcceptRangesHeader)
-		res.Header().Set("Cache-Control", lassiehttp.ResponseCacheControlHeader)
-		res.Header().Set("Content-Type", lassiehttp.ResponseContentTypeHeader)
+		res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
+		res.Header().Set("Content-Type", trustlesshttp.ResponseContentTypeHeader(includeDupes))
 		res.Header().Set("Etag", etag(rootCid, path.String(), dagScope, includeDupes))
 		res.Header().Set("X-Content-Type-Options", "nosniff")
 		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
@@ -171,9 +170,9 @@ func (w *ipfsResponseWriter) Write(p []byte) (int, error) {
 	return w.w.Write(p)
 }
 
-func etag(root cid.Cid, path string, scope lassietypes.DagScope, duplicates bool) string {
-	return lassietypes.RetrievalRequest{
-		Cid:        root,
+func etag(root cid.Cid, path string, scope trustlessutils.DagScope, duplicates bool) string {
+	return trustlessutils.Request{
+		Root:       root,
 		Path:       path,
 		Scope:      scope,
 		Duplicates: duplicates,
@@ -192,7 +191,7 @@ func closeWithUnterminatedChunk(res http.ResponseWriter) error {
 	if err != nil {
 		return fmt.Errorf("unable to access conn through hijack interface: %w", err)
 	}
-	if _, err := buf.Write(lassiehttp.ResponseChunkDelimeter); err != nil {
+	if _, err := buf.Write(trustlesshttp.ResponseChunkDelimeter); err != nil {
 		return fmt.Errorf("writing response chunk delimiter: %w", err)
 	}
 	if err := buf.Flush(); err != nil {
