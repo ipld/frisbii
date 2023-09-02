@@ -3,7 +3,6 @@ package frisbii
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 
 	// codecs we care about
@@ -17,7 +16,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car/v2"
-	carstorage "github.com/ipld/go-car/v2/storage"
+	"github.com/ipld/go-car/v2/storage/deferred"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -32,11 +31,7 @@ func StreamCar(
 	out io.Writer,
 	request trustlessutils.Request,
 ) error {
-	carWriter, err := carstorage.NewWritable(out, []cid.Cid{request.Root}, car.WriteAsCarV1(true), car.AllowDuplicatePuts(request.Duplicates))
-	if err != nil {
-		return fmt.Errorf("failed to create car writer: %w", err)
-	}
-
+	carWriter := deferred.NewDeferredCarWriterForStream(out, []cid.Cid{request.Root}, car.AllowDuplicatePuts(request.Duplicates))
 	requestLsys.StorageReadOpener = carPipe(requestLsys.StorageReadOpener, carWriter)
 
 	cfg := traversal.Config{Root: request.Root, Selector: request.Selector()}
@@ -52,7 +47,7 @@ func StreamCar(
 	return nil
 }
 
-func carPipe(orig linking.BlockReadOpener, car carstorage.WritableCar) linking.BlockReadOpener {
+func carPipe(orig linking.BlockReadOpener, car *deferred.DeferredCarWriter) linking.BlockReadOpener {
 	return func(lc linking.LinkContext, lnk datamodel.Link) (io.Reader, error) {
 		r, err := orig(lc, lnk)
 		if err != nil {

@@ -12,13 +12,16 @@ import (
 	"github.com/ipld/frisbii"
 	"github.com/ipld/go-car/v2"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/storage/memstore"
 	trustlesshttp "github.com/ipld/go-trustless-utils/http"
 	trustlesspathing "github.com/ipld/ipld/specs/pkg-go/trustless-pathing"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHttpIpfsHandler(t *testing.T) {
-	handler := frisbii.NewHttpIpfs(context.Background(), cidlink.DefaultLinkSystem())
+	lsys := cidlink.DefaultLinkSystem()
+	lsys.SetReadStorage(&CorrectedMemStore{Store: &memstore.Store{}})
+	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
 	testServer := httptest.NewServer(handler)
 	defer testServer.Close()
 
@@ -62,6 +65,17 @@ func TestHttpIpfsHandler(t *testing.T) {
 			accept:             "applicaiton/json",
 			expectedStatusCode: http.StatusBadRequest,
 			expectedBody:       "invalid Accept header; unsupported: \"applicaiton/json\"",
+		},
+		{
+			// special case where we get to start the request because everything
+			// is valid, but the block isn't in our blockstore; passing this
+			// depends on deferring writing the CAR output until after we've
+			// at least loaded the first block.
+			name:               "block not found",
+			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+			accept:             trustlesshttp.RequestAcceptHeader(true),
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedBody:       "failed to load root node: failed to load root CID: ipld: could not find bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
