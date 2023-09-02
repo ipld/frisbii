@@ -86,16 +86,18 @@ type CorrectedMemStore struct {
 
 func (cms *CorrectedMemStore) Get(ctx context.Context, key string) ([]byte, error) {
 	data, err := cms.Store.Get(ctx, key)
+	cid, _ := cid.Cast([]byte(key))
 	if err != nil && err.Error() == "404" {
-		err = format.ErrNotFound{}
+		err = format.ErrNotFound{Cid: cid}
 	}
 	return data, err
 }
 
 func (cms *CorrectedMemStore) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
 	rc, err := cms.Store.GetStream(ctx, key)
+	cid, _ := cid.Cast([]byte(key))
 	if err != nil && err.Error() == "404" {
-		err = format.ErrNotFound{}
+		err = format.ErrNotFound{Cid: cid}
 	}
 	return rc, err
 }
