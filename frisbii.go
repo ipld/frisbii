@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-log/v2"
@@ -25,11 +24,10 @@ var advMetadata = metadata.Default.New(metadata.IpfsGatewayHttp{})
 // HTTP server to serve data according to the Trustless Gateway spec and it
 // also provides a mechanism to announce the server to the indexer service.
 type FrisbiiServer struct {
-	ctx                 context.Context
-	lsys                linking.LinkSystem
-	logWriter           io.Writer
-	maxResponseDuration time.Duration
-	maxResponseBytes    int64
+	ctx         context.Context
+	lsys        linking.LinkSystem
+	logWriter   io.Writer
+	httpOptions []HttpOption
 
 	listener        net.Listener
 	mux             *http.ServeMux
@@ -45,22 +43,19 @@ func NewFrisbiiServer(
 	ctx context.Context,
 	logWriter io.Writer,
 	lsys linking.LinkSystem,
-	maxResponseDuration time.Duration,
-	maxResponseBytes int64,
 	address string,
+	httpOptions ...HttpOption,
 ) (*FrisbiiServer, error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
 	return &FrisbiiServer{
-		ctx:                 ctx,
-		logWriter:           logWriter,
-		lsys:                lsys,
-		maxResponseDuration: maxResponseDuration,
-		maxResponseBytes:    maxResponseBytes,
-
-		listener: listener,
+		ctx:         ctx,
+		logWriter:   logWriter,
+		lsys:        lsys,
+		httpOptions: httpOptions,
+		listener:    listener,
 	}, nil
 }
 
@@ -71,7 +66,7 @@ func (fs *FrisbiiServer) Addr() net.Addr {
 func (fs *FrisbiiServer) Serve() error {
 	fs.mux = http.NewServeMux()
 
-	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.logWriter, fs.lsys, fs.maxResponseDuration, fs.maxResponseBytes))
+	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.lsys, fs.httpOptions...))
 	server := &http.Server{
 		Addr:        fs.Addr().String(),
 		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },

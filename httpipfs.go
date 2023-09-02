@@ -25,48 +25,76 @@ type ErrorLogger interface {
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
 // Trustless Gateway specification.
 type HttpIpfs struct {
-	ctx                 context.Context
-	logWriter           io.Writer
-	lsys                linking.LinkSystem
-	maxResponseDuration time.Duration
-	maxResponseBytes    int64
+	ctx  context.Context
+	lsys linking.LinkSystem
+	cfg  *httpOptions
+}
+
+type httpOptions struct {
+	MaxResponseDuration time.Duration
+	MaxResponseBytes    int64
+}
+
+type HttpOption func(*httpOptions)
+
+// WithMaxResponseDuration sets the maximum duration for a response to be
+// streamed before the connection is closed. This allows a server to limit the
+// amount of time a client can hold a connection open; and also restricts the
+// ability to serve very large DAGs.
+//
+// A value of 0 will disable the limitation. This is the default.
+func WithMaxResponseDuration(d time.Duration) HttpOption {
+	return func(o *httpOptions) {
+		o.MaxResponseDuration = d
+	}
+}
+
+// WithMaxResponseBytes sets the maximum number of bytes that will be streamed
+// before the connection is closed. This allows a server to limit the amount of
+// data a client can request; and also restricts the ability to serve very large
+// DAGs.
+//
+// A value of 0 will disable the limitation. This is the default.
+func WithMaxResponseBytes(b int64) HttpOption {
+	return func(o *httpOptions) {
+		o.MaxResponseBytes = b
+	}
 }
 
 func NewHttpIpfs(
 	ctx context.Context,
-	logWriter io.Writer,
 	lsys linking.LinkSystem,
-	maxResponseDuration time.Duration,
-	maxResponseBytes int64,
+	opts ...HttpOption,
 ) *HttpIpfs {
+	cfg := &httpOptions{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 
 	return &HttpIpfs{
-		ctx:                 ctx,
-		logWriter:           logWriter,
-		lsys:                lsys,
-		maxResponseDuration: maxResponseDuration,
-		maxResponseBytes:    maxResponseBytes,
+		ctx:  ctx,
+		lsys: lsys,
+		cfg:  cfg,
 	}
 }
 
 func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	ctx := hi.ctx
-	if hi.maxResponseDuration > 0 {
+	if hi.cfg.MaxResponseDuration > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, hi.maxResponseDuration)
+		ctx, cancel = context.WithTimeout(ctx, hi.cfg.MaxResponseDuration)
 		defer cancel()
 	}
 
 	logError := func(status int, err error) {
+		res.WriteHeader(status)
+		res.Write([]byte(err.Error()))
 		if lrw, ok := res.(ErrorLogger); ok {
 			lrw.LogError(status, err)
 		} else {
-			logger.Debug("Error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
+			logger.Debugf("Error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
 		}
 	}
-
-	path := datamodel.ParsePath(req.URL.Path)
-	_, path = path.Shift() // remove /ipfs
 
 	// filter out everything but GET requests
 	switch req.Method {
@@ -77,6 +105,9 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		logError(http.StatusMethodNotAllowed, errors.New("method not allowed"))
 		return
 	}
+
+	path := datamodel.ParsePath(req.URL.Path)
+	_, path = path.Shift() // remove /ipfs
 
 	// check if CID path param is missing
 	if path.Len() == 0 {
@@ -102,7 +133,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	cidSeg, path = path.Shift()
 	rootCid, err := cid.Parse(cidSeg.String())
 	if err != nil {
-		logError(http.StatusInternalServerError, errors.New("failed to parse CID path parameter"))
+		logError(http.StatusBadRequest, errors.New("failed to parse CID path parameter"))
 		return
 	}
 
@@ -131,7 +162,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 
 	bytesWrittenCh := make(chan struct{})
-	writer := newIpfsResponseWriter(res, hi.maxResponseBytes, func() {
+	writer := newIpfsResponseWriter(res, hi.cfg.MaxResponseBytes, func() {
 		// called once we start writing blocks into the CAR (on the first Put())
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 		res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
