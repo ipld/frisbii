@@ -116,7 +116,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	includeDupes, err := trustlesshttp.CheckFormat(req)
+	accept, err := trustlesshttp.CheckFormat(req)
 	if err != nil {
 		logError(http.StatusBadRequest, err)
 		return
@@ -154,7 +154,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		Path:       path.String(),
 		Scope:      dagScope,
 		Bytes:      byteRange,
-		Duplicates: includeDupes,
+		Duplicates: accept.Duplicates,
 	}
 
 	if fileName == "" {
@@ -166,7 +166,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// called once we start writing blocks into the CAR (on the first Put())
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 		res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
-		res.Header().Set("Content-Type", trustlesshttp.ResponseContentTypeHeader(includeDupes))
+		res.Header().Set("Content-Type", accept.String())
 		res.Header().Set("Etag", request.Etag())
 		res.Header().Set("X-Content-Type-Options", "nosniff")
 		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())

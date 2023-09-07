@@ -41,21 +41,21 @@ func TestHttpIpfsHandler(t *testing.T) {
 		{
 			name:               "bad cid",
 			path:               "/ipfs/foobarbaz",
-			accept:             trustlesshttp.RequestAcceptHeader(true),
+			accept:             trustlesshttp.DefaultContentType().String(),
 			expectedStatusCode: http.StatusBadRequest,
 			expectedBody:       "failed to parse CID path parameter",
 		},
 		{
 			name:               "bad dag-scope",
 			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi?dag-scope=bork",
-			accept:             trustlesshttp.RequestAcceptHeader(true),
+			accept:             trustlesshttp.DefaultContentType().String(),
 			expectedStatusCode: http.StatusBadRequest,
 			expectedBody:       "invalid dag-scope parameter",
 		},
 		{
 			name:               "bad entity-bytes",
 			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi?entity-bytes=bork",
-			accept:             trustlesshttp.RequestAcceptHeader(true),
+			accept:             trustlesshttp.DefaultContentType().String(),
 			expectedStatusCode: http.StatusBadRequest,
 			expectedBody:       "invalid entity-bytes parameter",
 		},
@@ -73,7 +73,7 @@ func TestHttpIpfsHandler(t *testing.T) {
 			// at least loaded the first block.
 			name:               "block not found",
 			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-			accept:             trustlesshttp.RequestAcceptHeader(true),
+			accept:             trustlesshttp.DefaultContentType().String(),
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedBody:       "failed to load root node: failed to load root CID: ipld: could not find bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 		},
@@ -98,7 +98,7 @@ func TestHttpIpfsHandler(t *testing.T) {
 func TestIntegration_Unixfs20mVariety(t *testing.T) {
 	req := require.New(t)
 
-	testCases, err := trustlesspathing.Unixfs20mVarietyCases()
+	testCases, _, err := trustlesspathing.Unixfs20mVarietyCases()
 	req.NoError(err)
 	storage, closer, err := trustlesspathing.Unixfs20mVarietyReadableStorage()
 	req.NoError(err)
@@ -121,11 +121,11 @@ func TestIntegration_Unixfs20mVariety(t *testing.T) {
 
 			request, err := http.NewRequest(http.MethodGet, testServer.URL+tc.AsQuery(), nil)
 			req.NoError(err)
-			request.Header.Set("Accept", trustlesshttp.RequestAcceptHeader(false))
+			request.Header.Set("Accept", trustlesshttp.DefaultContentType().WithDuplicates(false).String())
 			res, err := http.DefaultClient.Do(request)
 			req.NoError(err)
 			req.Equal(http.StatusOK, res.StatusCode)
-			req.Equal(trustlesshttp.ResponseContentTypeHeader(false), res.Header.Get("Content-Type"))
+			req.Equal(trustlesshttp.DefaultContentType().WithDuplicates(false).String(), res.Header.Get("Content-Type"))
 
 			carReader, err := car.NewBlockReader(res.Body)
 			req.NoError(err)
