@@ -10,10 +10,10 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.0
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/go-unixfsnode v1.8.0
-	github.com/ipld/go-car/v2 v2.13.0
+	github.com/ipld/go-car/v2 v2.13.1
 	github.com/ipld/go-ipld-prime v0.21.0
-	github.com/ipld/go-trustless-utils v0.0.0
-	github.com/ipld/ipld/specs v0.0.0-20230826120441-91918996e8eb
+	github.com/ipld/go-trustless-utils v0.1.1-0.20230907055204-83d1e838c1c1
+	github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474
 	github.com/ipni/go-libipni v0.3.4
 	github.com/ipni/index-provider v0.13.5
 	github.com/libp2p/go-libp2p v0.30.0
