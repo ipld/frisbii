@@ -11,8 +11,9 @@ require (
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/go-unixfsnode v1.8.0
 	github.com/ipld/go-car/v2 v2.13.1
+	github.com/ipld/go-codec-dagpb v1.6.0
 	github.com/ipld/go-ipld-prime v0.21.0
-	github.com/ipld/go-trustless-utils v0.1.1-0.20230907055204-83d1e838c1c1
+	github.com/ipld/go-trustless-utils v0.2.0
 	github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474
 	github.com/ipni/go-libipni v0.3.4
 	github.com/ipni/index-provider v0.13.5
@@ -74,7 +75,6 @@ require (
 	github.com/ipfs/go-ipld-cbor v0.1.0 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-peertaskqueue v0.8.1 // indirect
-	github.com/ipld/go-codec-dagpb v1.6.0 // indirect
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-random v0.0.0-20190219211222-123a90aedc0c // indirect
