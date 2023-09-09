@@ -86,9 +86,26 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		defer cancel()
 	}
 
+	var rootCid cid.Cid
+	bytesWrittenCh := make(chan struct{})
+
 	logError := func(status int, err error) {
-		res.WriteHeader(status)
-		res.Write([]byte(err.Error()))
+		select {
+		case <-bytesWrittenCh:
+			cs := "unknown"
+			if rootCid.Defined() {
+				cs = rootCid.String()
+			}
+			logger.Debugw("forcing unclean close", "cid", cs, "status", status, "err", err)
+			if err := closeWithUnterminatedChunk(res); err != nil {
+				logger.Infow("unable to send early termination", "err", err)
+			}
+			return
+		default:
+			res.WriteHeader(status)
+			res.Write([]byte(err.Error()))
+		}
+
 		if lrw, ok := res.(ErrorLogger); ok {
 			lrw.LogError(status, err)
 		} else {
@@ -134,8 +151,7 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// validate CID path parameter
 	var cidSeg datamodel.PathSegment
 	cidSeg, path = path.Shift()
-	rootCid, err := cid.Parse(cidSeg.String())
-	if err != nil {
+	if rootCid, err = cid.Parse(cidSeg.String()); err != nil {
 		logError(http.StatusBadRequest, errors.New("failed to parse CID path parameter"))
 		return
 	}
@@ -164,7 +180,6 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
 	}
 
-	bytesWrittenCh := make(chan struct{})
 	writer := newIpfsResponseWriter(res, hi.cfg.MaxResponseBytes, func() {
 		// called once we start writing blocks into the CAR (on the first Put())
 		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
@@ -177,17 +192,8 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	})
 
 	if err := StreamCar(ctx, hi.lsys, writer, request); err != nil {
-		logError(http.StatusInternalServerError, err)
-		select {
-		case <-bytesWrittenCh:
-			logger.Debugw("unclean close", "cid", rootCid, "err", err)
-			if err := closeWithUnterminatedChunk(res); err != nil {
-				logger.Infow("unable to send early termination", "err", err)
-			}
-			return
-		default:
-		}
 		logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
+		logError(http.StatusInternalServerError, err)
 	}
 }
 
