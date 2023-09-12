@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -25,6 +26,11 @@ var Flags = []cli.Flag{
 		Name:  "announce",
 		Usage: "content to announce to the indexer, one of [none,roots]",
 		Value: "none",
+	},
+	&cli.StringFlag{
+		Name:  "announce-url",
+		Usage: "announcement endpoint url for the indexer",
+		Value: IndexerAnnounceUrl,
 	},
 	&cli.StringFlag{
 		Name:  "public-addr",
@@ -61,6 +67,7 @@ type Config struct {
 	Cars                []string
 	Listen              string
 	Announce            AnnounceType
+	AnnounceUrl         *url.URL
 	PublicAddr          string
 	LogFile             string
 	MaxResponseDuration time.Duration
@@ -90,6 +97,10 @@ func ToConfig(c *cli.Context) (Config, error) {
 	default:
 		return Config{}, errors.New("invalid announce parameter, must be of value [none,roots]")
 	}
+	announceUrl, err := url.Parse(c.String("announce-url"))
+	if err != nil {
+		return Config{}, err
+	}
 
 	listen := c.String("listen")
 	publicAddr := c.String("public-addr")
@@ -110,6 +121,7 @@ func ToConfig(c *cli.Context) (Config, error) {
 		Cars:                carPaths,
 		Listen:              listen,
 		Announce:            announceType,
+		AnnounceUrl:         announceUrl,
 		PublicAddr:          publicAddr,
 		LogFile:             logFile,
 		MaxResponseDuration: maxResponseDuration,
