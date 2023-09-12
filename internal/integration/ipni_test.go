@@ -1,3 +1,5 @@
+//go:build !race
+
 package integration
 
 import (
@@ -7,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -22,8 +25,9 @@ import (
 const rseed = 1234
 
 func TestIpni(t *testing.T) {
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping integration test in CI environment")
+	// skip if windows, just too slow in CI, maybe revisit this later
+	if os.Getenv("CI") != "" && runtime.GOOS == "windows" {
+		t.Skip("skipping on windows in CI")
 	}
 
 	for _, testCase := range []struct {
@@ -43,7 +47,7 @@ func TestIpni(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			req := require.New(t)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 
 			indexerReady := test.NewIndexerReadyWatcher()
