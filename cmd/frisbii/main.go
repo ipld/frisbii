@@ -11,6 +11,7 @@ import (
 	"github.com/ipfs/go-log/v2"
 	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/frisbii"
+	util "github.com/ipld/frisbii/internal/util"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipni/go-libipni/maurl"
 	"github.com/ipni/index-provider/engine"
@@ -21,7 +22,6 @@ import (
 )
 
 const (
-	ConfigDir          = ".frisbii"
 	IndexerHandlerPath = "/_ipni/"
 	IndexerAnnounceUrl = "https://cid.contact/ingest/announce"
 	DefaultHttpPort    = 3747
@@ -30,6 +30,10 @@ const (
 var logger = log.Logger("frisbii")
 
 func main() {
+	// Set up a context that is canceled when the command is interrupted
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	app := &cli.App{
 		Name:   "frisbii",
 		Usage:  "A minimal IPLD data provider for IPFS",
@@ -37,7 +41,22 @@ func main() {
 		Action: action,
 	}
 
-	err := app.Run(os.Args)
+	// Set up a signal handler to cancel the context
+	go func() {
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, syscall.SIGTERM, syscall.SIGINT)
+		select {
+		case <-interrupt:
+			cancel()
+			fmt.Println("Received interrupt signal, shutting down...")
+			fmt.Println("(Hit ctrl-c again to force-shutdown the daemon.)")
+		case <-ctx.Done():
+		}
+		// Allow any further SIGTERM or SIGINT to kill process
+		signal.Stop(interrupt)
+	}()
+
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		logger.Error(err)
 		os.Exit(1)
@@ -45,7 +64,7 @@ func main() {
 }
 
 func action(c *cli.Context) error {
-	ctx := context.Background()
+	ctx := c.Context
 
 	config, err := ToConfig(c)
 	if err != nil {
@@ -71,12 +90,12 @@ func action(c *cli.Context) error {
 		}()
 	}
 
-	confDir, err := configDir()
+	confDir, err := util.ConfigDir()
 	if err != nil {
 		return err
 	}
 
-	privKey, id, err := loadPrivKey(confDir)
+	privKey, id, err := util.LoadPrivKey(confDir)
 	if err != nil {
 		return err
 	}
@@ -84,7 +103,7 @@ func action(c *cli.Context) error {
 	multicar := frisbii.NewMultiReadableStorage()
 	for ii, carPath := range config.Cars {
 		loader.SetStatus(fmt.Sprintf("Loading CARs (%d / %d) ...", ii+1, len(config.Cars)))
-		loadCar(multicar, carPath)
+		util.LoadCar(multicar, carPath)
 	}
 
 	loader.SetStatus("Loaded CARs, starting server ...")
@@ -117,7 +136,7 @@ func action(c *cli.Context) error {
 		errCh <- server.Serve()
 	}()
 
-	frisbiiListenAddr, err := getListenAddr(server.Addr().String(), config.PublicAddr)
+	frisbiiListenAddr, err := util.GetListenAddr(server.Addr().String(), config.PublicAddr)
 	if err != nil {
 		return err
 	}
@@ -149,7 +168,7 @@ func action(c *cli.Context) error {
 		engine, err := engine.New(
 			engine.WithPrivateKey(privKey),
 			engine.WithProvider(peer.AddrInfo{ID: id, Addrs: []multiaddr.Multiaddr{frisbiiListenAddr.Maddr}}),
-			engine.WithDirectAnnounce(IndexerAnnounceUrl),
+			engine.WithDirectAnnounce(config.AnnounceUrl.String()),
 			engine.WithPublisherKind(engine.HttpPublisher),
 			engine.WithHttpPublisherWithoutServer(),
 			engine.WithHttpPublisherHandlerPath(IndexerHandlerPath),

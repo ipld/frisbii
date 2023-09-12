@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"crypto/rand"
@@ -9,6 +9,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/ipfs/go-log/v2"
 	"github.com/ipld/frisbii"
 	car "github.com/ipld/go-car/v2"
 	carstorage "github.com/ipld/go-car/v2/storage"
@@ -18,7 +19,11 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-func loadCar(multicar *frisbii.MultiReadableStorage, carPath string) error {
+const FrisbiiConfigDir = ".frisbii"
+
+var logger = log.Logger("frisbii")
+
+func LoadCar(multicar *frisbii.MultiReadableStorage, carPath string) error {
 	start := time.Now()
 	logger.Infof("Opening CAR file [%s]...", carPath)
 	carFile, err := os.Open(carPath)
@@ -40,7 +45,7 @@ type ListenAddr struct {
 	Unspecified bool
 }
 
-func getListenAddr(serverAddr string, publicAddr string) (ListenAddr, error) {
+func GetListenAddr(serverAddr string, publicAddr string) (ListenAddr, error) {
 	frisbiiAddr := "http://" + serverAddr
 	if publicAddr != "" {
 		frisbiiAddr = publicAddr
@@ -81,7 +86,7 @@ func getListenAddr(serverAddr string, publicAddr string) (ListenAddr, error) {
 	return la, nil
 }
 
-func loadPrivKey(confDir string) (crypto.PrivKey, peer.ID, error) {
+func LoadPrivKey(confDir string) (crypto.PrivKey, peer.ID, error) {
 	// make the config dir in the user's home dir if it doesn't exist
 	keyFile := path.Join(confDir, "key")
 	data, err := os.ReadFile(keyFile)
@@ -116,12 +121,12 @@ func loadPrivKey(confDir string) (crypto.PrivKey, peer.ID, error) {
 	return privKey, id, nil
 }
 
-func configDir() (string, error) {
+func ConfigDir() (string, error) {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	confDir := path.Join(homedir, ConfigDir)
+	confDir := path.Join(homedir, FrisbiiConfigDir)
 	if _, err := os.Stat(confDir); os.IsNotExist(err) {
 		if err := os.Mkdir(confDir, 0700); err != nil {
 			return "", err
