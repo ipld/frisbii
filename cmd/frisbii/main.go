@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/ipfs/go-log/v2"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	IndexerHandlerPath = "/_ipni/"
+	IndexerHandlerPath = "/ipni/"
 	IndexerAnnounceUrl = "https://cid.contact/ingest/announce"
 	DefaultHttpPort    = 3747
 )
@@ -159,11 +160,21 @@ func action(c *cli.Context) error {
 			return err
 		}
 
-		httpath, err := multiaddr.NewComponent("httpath", url.PathEscape(IndexerHandlerPath))
-		if err != nil {
-			return err
+		announceAddr := frisbiiListenAddr.Maddr
+		ipniPath := config.IpniPath
+		if strings.HasPrefix("/ipni/v1/ad/", config.IpniPath) {
+			// if it's some subset of /ipni/v1/ad/ then we won't need to add it,
+			// ipnisync's ServeHTTP is agnostic and only cares about the path.Base()
+			// of the path.
+			ipniPath = ""
 		}
-		announceAddr := multiaddr.Join(frisbiiListenAddr.Maddr, httpath)
+		if ipniPath != "" {
+			httpath, err := multiaddr.NewComponent("httpath", url.PathEscape(ipniPath))
+			if err != nil {
+				return err
+			}
+			announceAddr = multiaddr.Join(announceAddr, httpath)
+		}
 
 		engine, err := engine.New(
 			engine.WithPrivateKey(privKey),
@@ -171,7 +182,7 @@ func action(c *cli.Context) error {
 			engine.WithDirectAnnounce(config.AnnounceUrl.String()),
 			engine.WithPublisherKind(engine.HttpPublisher),
 			engine.WithHttpPublisherWithoutServer(),
-			engine.WithHttpPublisherHandlerPath(IndexerHandlerPath),
+			engine.WithHttpPublisherHandlerPath(ipniPath),
 			engine.WithHttpPublisherListenAddr(listenUrl.Host),
 			engine.WithHttpPublisherAnnounceAddr(announceAddr.String()),
 		)
@@ -187,7 +198,10 @@ func action(c *cli.Context) error {
 			return err
 		}
 
-		server.SetIndexerProvider(IndexerHandlerPath, engine)
+		// use config.IpniPath here, but the adjusted ipniPath above for setting up
+		// the engine; here we set our local mount expectations and it can't be
+		// ""
+		server.SetIndexerProvider(config.IpniPath, engine)
 
 		if err := server.Announce(); err != nil {
 			return err
