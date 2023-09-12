@@ -17,6 +17,7 @@ require (
 	github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474
 	github.com/ipni/go-libipni v0.5.0
 	github.com/ipni/index-provider v0.14.1
+	github.com/ipni/storetheindex v0.7.9-0.20230912093039-8042ebe82b42
 	github.com/libp2p/go-libp2p v0.31.0
 	github.com/multiformats/go-multiaddr v0.11.0
 	github.com/multiformats/go-multihash v0.2.3
@@ -146,6 +147,7 @@ require (
 	go.uber.org/fx v1.20.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.25.0 // indirect
+	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
 	golang.org/x/mod v0.12.0 // indirect
