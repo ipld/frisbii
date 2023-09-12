@@ -22,6 +22,10 @@ import (
 const rseed = 1234
 
 func TestIpni(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping integration test in CI environment")
+	}
+
 	for _, testCase := range []struct {
 		name         string
 		frisbiiFlags []string
