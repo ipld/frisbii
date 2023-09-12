@@ -83,7 +83,7 @@ func (fs *FrisbiiServer) SetIndexerProvider(handlerPath string, indexerProvider 
 	if err != nil {
 		return err
 	}
-	if handlerPath[len(handlerPath)-1] != '/' {
+	if handlerPath == "" || handlerPath[len(handlerPath)-1] != '/' {
 		handlerPath += "/"
 	}
 	fs.mux.HandleFunc(handlerPath, handlerFunc)

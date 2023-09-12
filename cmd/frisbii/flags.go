@@ -33,6 +33,11 @@ var Flags = []cli.Flag{
 		Value: IndexerAnnounceUrl,
 	},
 	&cli.StringFlag{
+		Name:  "ipni-path",
+		Usage: "the local path to serve IPNI content from, requests will have /ipni/v1/ad/ automatically appended to it",
+		Value: IndexerHandlerPath,
+	},
+	&cli.StringFlag{
 		Name:  "public-addr",
 		Usage: "multiaddr or URL of this server as seen by the indexer and other peers if it is different to the listen address",
 	},
@@ -68,6 +73,7 @@ type Config struct {
 	Listen              string
 	Announce            AnnounceType
 	AnnounceUrl         *url.URL
+	IpniPath            string
 	PublicAddr          string
 	LogFile             string
 	MaxResponseDuration time.Duration
@@ -102,6 +108,7 @@ func ToConfig(c *cli.Context) (Config, error) {
 		return Config{}, err
 	}
 
+	ipniPath := c.String("ipni-path")
 	listen := c.String("listen")
 	publicAddr := c.String("public-addr")
 	logFile := c.String("log-file")
@@ -122,6 +129,7 @@ func ToConfig(c *cli.Context) (Config, error) {
 		Listen:              listen,
 		Announce:            announceType,
 		AnnounceUrl:         announceUrl,
+		IpniPath:            ipniPath,
 		PublicAddr:          publicAddr,
 		LogFile:             logFile,
 		MaxResponseDuration: maxResponseDuration,
