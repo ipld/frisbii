@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ import (
 
 const rseed = 1234
 
-func TestIpni(t *testing.T) {
+func TestIpniAndFetchIntegration(t *testing.T) {
 	// skip if windows, just too slow in CI, maybe revisit this later
 	if os.Getenv("CI") != "" && runtime.GOOS == "windows" {
 		t.Skip("skipping on windows in CI")
@@ -73,6 +74,9 @@ func TestIpni(t *testing.T) {
 			// install the ipni cli to inspect the indexer
 			ipni := filepath.Join(tr.Dir, "ipni")
 			tr.Run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
+			// install lassie to perform a fetch of our content
+			lassie := filepath.Join(tr.Dir, "lassie")
+			tr.Run("go", "install", "github.com/filecoin-project/lassie/cmd/lassie@latest")
 
 			err = os.Chdir(cwd)
 			req.NoError(err)
@@ -128,7 +132,8 @@ func TestIpni(t *testing.T) {
 
 			// wait for the CARs to be indexed
 			req.Eventually(func() bool {
-				for mh := range cars {
+				for root := range cars {
+					mh := root.Hash().B58String()
 					findOutput := tr.Run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
 					t.Logf("import output:\n%s\n", findOutput)
 
@@ -144,6 +149,27 @@ func TestIpni(t *testing.T) {
 				return true
 			}, 10*time.Second, time.Second)
 
+			// fetch the data with lassie using the local indexer and make sure we
+			// got the CAR content we expected
+			for root, carPath := range cars {
+				tr.Run(lassie,
+					"fetch",
+					"-vv",
+					"--ipni-endpoint", "http://localhost:3000",
+					root.String(),
+				)
+
+				gotCarPath := root.String() + ".car"
+				_, err := os.Stat(gotCarPath)
+				req.NoError(err)
+				t.Cleanup(func() {
+					err := os.Remove(gotCarPath)
+					req.NoError(err)
+				})
+
+				compareContents(t, carPath, gotCarPath)
+			}
+
 			// stop and clean up
 			tr.Stop(cmdIndexer, time.Second)
 			tr.Stop(cmdFrisbii, time.Second)
@@ -151,11 +177,11 @@ func TestIpni(t *testing.T) {
 	}
 }
 
-func mkCars(t *testing.T, count int) map[string]string {
+func mkCars(t *testing.T, count int) map[cid.Cid]string {
 	req := require.New(t)
 
 	carDir := t.TempDir()
-	cars := make(map[string]string, count)
+	cars := make(map[cid.Cid]string, count)
 	rndReader := rand.New(rand.NewSource(int64(rseed)))
 
 	for i := 0; i < count; i++ {
@@ -171,8 +197,41 @@ func mkCars(t *testing.T, count int) map[string]string {
 		req.NoError(err)
 		err = car.ReplaceRootsInFile(carFile.Name(), []cid.Cid{dirEnt.Root})
 		req.NoError(err)
-		cars[dirEnt.Root.Hash().B58String()] = carFile.Name()
+		cars[dirEnt.Root] = carFile.Name()
 	}
 
 	return cars
+}
+
+func compareContents(t *testing.T, expectedPath, gotPath string) {
+	req := require.New(t)
+	expectedFile, err := os.Open(expectedPath)
+	req.NoError(err)
+	expectedCar, err := car.NewBlockReader(expectedFile)
+	req.NoError(err)
+	expectedCids := make([]cid.Cid, 0)
+	for {
+		blk, err := expectedCar.Next()
+		if err != nil {
+			req.ErrorIs(err, io.EOF)
+			break
+		}
+		expectedCids = append(expectedCids, blk.Cid())
+	}
+
+	gotFile, err := os.Open(gotPath)
+	require.NoError(t, err)
+	gotCar, err := car.NewBlockReader(gotFile)
+	require.NoError(t, err)
+	gotCids := make([]cid.Cid, 0)
+	for {
+		blk, err := gotCar.Next()
+		if err != nil {
+			req.ErrorIs(err, io.EOF)
+			break
+		}
+		gotCids = append(gotCids, blk.Cid())
+	}
+
+	req.ElementsMatch(expectedCids, gotCids)
 }
