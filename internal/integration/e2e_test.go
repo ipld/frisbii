@@ -51,10 +51,7 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 
-			indexerReady := test.NewIndexerReadyWatcher()
-			frisbiiReady := test.NewStdoutWatcher("frisbii", "Announce() complete")
-
-			tr := test.NewTestIndexerRunner(t, ctx, t.TempDir(), indexerReady, frisbiiReady)
+			tr := test.NewTestIpniRunner(t, ctx, t.TempDir())
 
 			t.Log("Running in test directory:", tr.Dir)
 
@@ -70,7 +67,7 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 
 			// install the indexer to announce to
 			indexer := filepath.Join(tr.Dir, "storetheindex")
-			tr.Run("go", "install", "github.com/ipni/storetheindex@e56485343dd8e235581191b4668b5bfc0cea0781") // TODO: use @latest when we have a release
+			tr.Run("go", "install", "github.com/ipni/storetheindex@HEAD") // TODO: use @latest when we have a release
 			// install the ipni cli to inspect the indexer
 			ipni := filepath.Join(tr.Dir, "ipni")
 			tr.Run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
@@ -83,7 +80,8 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 
 			// initialise and start the indexer and adjust the config
 			tr.Run(indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
-			cmdIndexer := tr.Start(indexer, "daemon")
+			indexerReady := test.NewStdoutWatcher(test.IndexerReadyMatch)
+			cmdIndexer := tr.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady))
 			select {
 			case <-indexerReady.Signal:
 			case <-ctx.Done():
@@ -122,7 +120,8 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 			args = append(args, testCase.frisbiiFlags...)
 
 			// start frisbii
-			cmdFrisbii := tr.Start(frisbii, args...)
+			frisbiiReady := test.NewStdoutWatcher("Announce() complete")
+			cmdFrisbii := tr.Start(test.NewExecution(frisbii, args...).WithWatcher(frisbiiReady))
 
 			select {
 			case <-frisbiiReady.Signal:
