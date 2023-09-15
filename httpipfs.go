@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,7 +99,11 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			}
 			logger.Debugw("forcing unclean close", "cid", cs, "status", status, "err", err)
 			if err := closeWithUnterminatedChunk(res); err != nil {
-				logger.Infow("unable to send early termination", "err", err)
+				log := logger.Infow
+				if strings.Contains(err.Error(), "use of closed network connection") {
+					log = logger.Debugw // it's just not as interesting in this case
+				}
+				log("unable to send early termination", "err", err)
 			}
 			return
 		default:
