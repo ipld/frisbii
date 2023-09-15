@@ -293,8 +293,8 @@ github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474 h1:CiDtcUFyzRwhKyi
 github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474/go.mod h1:WcT0DfRe+e2QFY0kcbsOnuT6jL5Q0JNZ83I5DHIdStg=
 github.com/ipni/go-libipni v0.5.0 h1:UTVq4U9cReNz/rbeVeUvl+JTLexdfb7yjmBgouSteJ8=
 github.com/ipni/go-libipni v0.5.0/go.mod h1:UnrhEqjVI2Z2HXlaieOBONJmtW557nZkYpB4IIsMD+s=
-github.com/ipni/index-provider v0.14.1 h1:ADD/bdn/E7QUWeZEhjs2DJ/kfAzBozXMeGjR4SEV3sE=
-github.com/ipni/index-provider v0.14.1/go.mod h1:Ax0/G8jSQaCYqukXb6KzX41MsDZxrCnShWWcjU3XoaE=
+github.com/ipni/index-provider v0.14.2 h1:daA3IFnI2n2x/mL0K91SQHNLq6Vvfp5q4uFX9G4glvE=
+github.com/ipni/index-provider v0.14.2/go.mod h1:mArx7Ou3Y62fIDSj9a1Neh5G14xQcwXGbfEbf47vyuM=
 github.com/ipni/storetheindex v0.7.9-0.20230914224616-e6658bcf60c5 h1:WXgzhHhDatR+TtTOYUKrqiJpxYGCQE3NkHix/cyuch8=
 github.com/ipni/storetheindex v0.7.9-0.20230914224616-e6658bcf60c5/go.mod h1:C7798VST3lqwZnCl8lGCjol5GUU9yFD9RJgOZ17LZRE=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
