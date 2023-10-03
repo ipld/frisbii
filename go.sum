@@ -287,8 +287,8 @@ github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0/go.mod h1:od
 github.com/ipld/go-ipld-prime v0.21.0 h1:n4JmcpOlPDIxBcY037SVfpd1G+Sj1nKZah0m6QH9C2E=
 github.com/ipld/go-ipld-prime v0.21.0/go.mod h1:3RLqy//ERg/y5oShXXdx5YIp50cFGOanyMctpPjsvxQ=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20230102063945-1a409dc236dd h1:gMlw/MhNr2Wtp5RwGdsW23cs+yCuj9k2ON7i9MiJlRo=
-github.com/ipld/go-trustless-utils v0.3.0 h1:Dx0t5362uOqub3orC8fPr60FdMkF+O3WNa0dkHjWPLU=
-github.com/ipld/go-trustless-utils v0.3.0/go.mod h1:nbUA6YuKZqNHYd3mYKALxOQa5aC8fnr2w+OxirSSOqc=
+github.com/ipld/go-trustless-utils v0.3.1 h1:i7lPoo7HbThj93wJO1aow3UKdL6AV/jeTLXzTEBZDsE=
+github.com/ipld/go-trustless-utils v0.3.1/go.mod h1:SQR5abLVb2YcZiy9QEsBhNyIPj6ubWISJnrpwNBdmpA=
 github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474 h1:CiDtcUFyzRwhKyiS4Gn+fzdraMoNVtPHd+wVIekExPc=
 github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474/go.mod h1:WcT0DfRe+e2QFY0kcbsOnuT6jL5Q0JNZ83I5DHIdStg=
 github.com/ipni/go-libipni v0.5.2 h1:9vaYOnR4dskd8p88NOboqI6yVqBwYPNCQ/zOaRSr59I=

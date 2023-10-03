@@ -19,6 +19,7 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	trustlessutils "github.com/ipld/go-trustless-utils"
+	trustlesstestutil "github.com/ipld/go-trustless-utils/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -186,7 +187,7 @@ func entCids(ent unixfs.DirEntry) []cid.Cid {
 }
 
 func makeLsys() linking.LinkSystem {
-	store := &CorrectedMemStore{Store: &memstore.Store{
+	store := &trustlesstestutil.CorrectedMemStore{ParentStore: &memstore.Store{
 		Bag: make(map[string][]byte),
 	}}
 	lsys := cidlink.DefaultLinkSystem()
