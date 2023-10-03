@@ -21,6 +21,7 @@ import (
 	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	trustlesshttp "github.com/ipld/go-trustless-utils/http"
+	trustlesstestutil "github.com/ipld/go-trustless-utils/testutil"
 	trustlesspathing "github.com/ipld/ipld/specs/pkg-go/trustless-pathing"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ import (
 
 func TestHttpIpfsHandler(t *testing.T) {
 	lsys := cidlink.DefaultLinkSystem()
-	lsys.SetReadStorage(&CorrectedMemStore{Store: &memstore.Store{}})
+	lsys.SetReadStorage(&trustlesstestutil.CorrectedMemStore{ParentStore: &memstore.Store{}})
 	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
 	testServer := httptest.NewServer(handler)
 	defer testServer.Close()
@@ -154,7 +155,7 @@ func TestHttpIpfsIntegration_Unixfs20mVariety(t *testing.T) {
 }
 
 func TestHttpIpfsDuplicates(t *testing.T) {
-	store := &CorrectedMemStore{Store: &memstore.Store{}}
+	store := &trustlesstestutil.CorrectedMemStore{ParentStore: &memstore.Store{}}
 	lsys := cidlink.DefaultLinkSystem()
 	lsys.SetReadStorage(store)
 	lsys.SetWriteStorage(store)

@@ -13,6 +13,7 @@ import (
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	"github.com/ipld/go-ipld-prime/storage"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
+	trustlesstestutil "github.com/ipld/go-trustless-utils/testutil"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
@@ -31,9 +32,9 @@ func TestMultiReadableStorage(t *testing.T) {
 			bag[blocks[jj].cid.KeyString()] = blocks[jj].byts
 		}
 		if ii == 2 {
-			multistore.AddStore(&OnlyStreamingStore{&CorrectedMemStore{Store: &memstore.Store{Bag: bag}}}, []cid.Cid{blocks[ii*20].cid})
+			multistore.AddStore(&OnlyStreamingStore{&trustlesstestutil.CorrectedMemStore{ParentStore: &memstore.Store{Bag: bag}}}, []cid.Cid{blocks[ii*20].cid})
 		} else {
-			multistore.AddStore(&CorrectedMemStore{Store: &memstore.Store{Bag: bag}}, []cid.Cid{blocks[ii*20].cid})
+			multistore.AddStore(&trustlesstestutil.CorrectedMemStore{ParentStore: &memstore.Store{Bag: bag}}, []cid.Cid{blocks[ii*20].cid})
 		}
 	}
 	lsys := cidlink.DefaultLinkSystem()
@@ -74,32 +75,6 @@ func randBlock() blk {
 		panic(err)
 	}
 	return blk{cid.NewCidV1(cid.Raw, h), data}
-}
-
-var _ storage.StreamingReadableStorage = (*CorrectedMemStore)(nil)
-var _ storage.ReadableStorage = (*CorrectedMemStore)(nil)
-var _ storage.StreamingReadableStorage = (*OnlyStreamingStore)(nil)
-
-type CorrectedMemStore struct {
-	*memstore.Store
-}
-
-func (cms *CorrectedMemStore) Get(ctx context.Context, key string) ([]byte, error) {
-	data, err := cms.Store.Get(ctx, key)
-	cid, _ := cid.Cast([]byte(key))
-	if err != nil && err.Error() == "404" {
-		err = format.ErrNotFound{Cid: cid}
-	}
-	return data, err
-}
-
-func (cms *CorrectedMemStore) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
-	rc, err := cms.Store.GetStream(ctx, key)
-	cid, _ := cid.Cast([]byte(key))
-	if err != nil && err.Error() == "404" {
-		err = format.ErrNotFound{Cid: cid}
-	}
-	return rc, err
 }
 
 type OnlyStreamingStore struct {
