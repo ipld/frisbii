@@ -108,13 +108,15 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			return
 		default:
 			res.WriteHeader(status)
-			res.Write([]byte(err.Error()))
+			if _, werr := res.Write([]byte(err.Error())); werr != nil {
+				logger.Debugw("unable to write error to response", "err", werr)
+			}
 		}
 
 		if lrw, ok := res.(ErrorLogger); ok {
 			lrw.LogError(status, err)
 		} else {
-			logger.Debugf("Error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
+			logger.Debugf("error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
 		}
 	}
 
