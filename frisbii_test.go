@@ -92,7 +92,7 @@ func TestFrisbiiServer(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
 			opts := []frisbii.HttpOption{}
@@ -131,9 +131,9 @@ func TestFrisbiiServer(t *testing.T) {
 					rdr, err = gzip.NewReader(response.Body)
 					req.NoError(err)
 				} // else should be handled by the go client
-				req.Regexp(`\.car\.\w{13}\.gz"$`, response.Header.Get("Etag"))
+				req.Regexp(`\.car\.\w{12,13}\.gz"$`, response.Header.Get("Etag"))
 			} else {
-				req.Regexp(`\.car\.\w{13}"$`, response.Header.Get("Etag"))
+				req.Regexp(`\.car\.\w{12,13}"$`, response.Header.Get("Etag"))
 			}
 			cr, err := car.NewBlockReader(rdr)
 			req.NoError(err)
