@@ -34,7 +34,7 @@ func (lm *LogMiddleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	lres := NewLoggingResponseWriter(res, req, lm.logWriter)
 	start := time.Now()
 	defer func() {
-		lres.Log(lres.status, time.Since(start), lres.bytes, "")
+		lres.Log(lres.status, time.Since(start), lres.sentBytes, lres.CompressionRatio(), "")
 	}()
 	lm.next.ServeHTTP(lres, req)
 }
@@ -43,11 +43,12 @@ var _ http.ResponseWriter = (*LoggingResponseWriter)(nil)
 
 type LoggingResponseWriter struct {
 	http.ResponseWriter
-	logWriter io.Writer
-	req       *http.Request
-	status    int
-	bytes     int
-	wrote     bool
+	logWriter  io.Writer
+	req        *http.Request
+	status     int
+	wroteBytes int
+	sentBytes  int
+	wrote      bool
 }
 
 func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWriter io.Writer) *LoggingResponseWriter {
@@ -58,7 +59,18 @@ func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWrite
 	}
 }
 
-func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes int, msg string) {
+func (w *LoggingResponseWriter) CompressionRatio() string {
+	if w.sentBytes == 0 || w.wroteBytes == 0 || w.wroteBytes == w.sentBytes {
+		return "-"
+	}
+	s := fmt.Sprintf("%.2f", float64(w.wroteBytes)/float64(w.sentBytes))
+	if s == "0.00" {
+		return "-"
+	}
+	return s
+}
+
+func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes int, CompressionRatio string, msg string) {
 	if w.wrote {
 		return
 	}
@@ -69,7 +81,7 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 	}
 	fmt.Fprintf(
 		w.logWriter,
-		"%s %s %s \"%s\" %d %d %d %s %s\n",
+		"%s %s %s \"%s\" %d %d %d %s %s %s\n",
 		time.Now().Format(time.RFC3339),
 		remoteAddr,
 		w.req.Method,
@@ -77,6 +89,7 @@ func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes in
 		status,
 		duration.Milliseconds(),
 		bytes,
+		CompressionRatio,
 		strconv.Quote(w.req.UserAgent()),
 		strconv.Quote(msg),
 	)
@@ -93,9 +106,9 @@ func (w *LoggingResponseWriter) LogError(status int, err error) {
 			break
 		}
 	}
-	w.Log(status, 0, 0, msg)
+	w.Log(status, 0, 0, "-", msg)
 	w.status = status
-	if w.bytes == 0 {
+	if w.sentBytes == 0 {
 		http.Error(w.ResponseWriter, strconv.Quote(msg), status)
 	}
 }
@@ -110,7 +123,7 @@ func (w *LoggingResponseWriter) Write(b []byte) (int, error) {
 		w.status = http.StatusOK
 	}
 	n, err := w.ResponseWriter.Write(b)
-	w.bytes += n
+	w.sentBytes += n
 	return n, err
 }
 
