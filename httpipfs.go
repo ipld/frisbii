@@ -86,13 +86,11 @@ func NewHttpIpfs(
 	cfg := toConfig(opts)
 	handlerFunc := NewHttpIpfsHandlerFunc(ctx, lsys, opts...)
 	if cfg.CompressionLevel != gzip.NoCompression {
-		gzipHandler, err := gziphandler.NewGzipLevelHandler(cfg.CompressionLevel)
-		if err != nil {
-			panic(err)
-		}
+		gzipHandler := gziphandler.MustNewGzipLevelHandler(cfg.CompressionLevel)
 		// mildly awkward level of wrapping going on here but HttpIpfs is really
 		// just a HandlerFunc->Handler converter
 		handlerFunc = gzipHandler(&HttpIpfs{handlerFunc: handlerFunc}).ServeHTTP
+		logger.Debugf("enabling compression with a level of %d", cfg.CompressionLevel)
 	}
 	return &HttpIpfs{handlerFunc: handlerFunc}
 }
@@ -226,7 +224,7 @@ func NewHttpIpfsHandlerFunc(
 			fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
 		}
 
-		writer := newIpfsResponseWriter(res, cfg.MaxResponseBytes, func() {
+		var writer io.Writer = newIpfsResponseWriter(res, cfg.MaxResponseBytes, func() {
 			// called once we start writing blocks into the CAR (on the first Put())
 			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 			res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
@@ -246,11 +244,32 @@ func NewHttpIpfsHandlerFunc(
 			close(bytesWrittenCh)
 		})
 
+		if lrw, ok := res.(*LoggingResponseWriter); ok {
+			writer = &countingWriter{writer, lrw}
+		} else if grw, ok := res.(*gziphandler.GzipResponseWriter); ok {
+			if lrw, ok := grw.ResponseWriter.(*LoggingResponseWriter); ok {
+				writer = &countingWriter{writer, lrw}
+			}
+		}
+
 		if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
 			logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
 			logError(http.StatusInternalServerError, err)
 		}
 	}
+}
+
+var _ io.Writer = (*countingWriter)(nil)
+
+type countingWriter struct {
+	io.Writer
+	lrw *LoggingResponseWriter
+}
+
+func (cw *countingWriter) Write(p []byte) (int, error) {
+	n, err := cw.Writer.Write(p)
+	cw.lrw.wroteBytes += n
+	return n, err
 }
 
 var _ io.Writer = (*ipfsResponseWriter)(nil)

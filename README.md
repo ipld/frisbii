@@ -32,7 +32,7 @@ Full argument list:
 * `--announce` - announce the given roots to IPNI on startup. Can be `roots` or `none`. Defaults to `none`.
 * `--listen` - hostname and port to listen on. Defaults to `:3747`.
 * `--public-addr` - multiaddr or URL of this server as seen by the indexer and other peers if it is different to the listen address. Defaults address of the server once started (typically the value of `--listen`).
-* `--log-file` - path to file to append HTTP request and error logs to. Defaults to `stdout`.
+* `--log-file` - path to file to append HTTP request and error logs to. See [Log format](#log-format) for details of the log format. Defaults to `stdout`.
 * `--max-response-duration` - maximum duration to spend responding to a request. Defaults to `5m`.
 * `--max-response-bytes` - maximum size of a response from IPNI. Defaults to `100MiB`.
 * `--compression-level` - compression level to use for HTTP response data where the client accepts it. `0`-`9`, `0` is no compression, `9` is maximum compression. Defaults to `0` (none).
@@ -54,6 +54,27 @@ Using `--anounce=roots` will announce the roots of all CARs loaded by Frisbii to
 See https://pkg.go.dev/github.com/ipld/frisbii for full documentation.
 
 `NewFrisbiiServer()` can be used to create a new server given a `LinkSystem` as a source of IPLD data.
+
+## Log format
+
+Frisbii logs HTTP requests and errors to a log file that is roughly equivalent to a standard nginx or Apache log format; that is, a space-separated list of elements, where the elements that may contain spaces are quoted. The format of each line can be specified as:
+
+```
+%s %s %s "%s" %d %d %d %s "%s" "%s"
+```
+
+Where the elements are:
+
+1. RFC 3339 timestamp
+2. Remote address
+3. Method
+4. Path
+5. Response status code
+6. Response duration (in milliseconds)
+7. Response size
+8. Compression ratio (or `-` if no compression)
+9. User agent
+10. Error (or `""` if no error)
 
 ## Further Development
 
