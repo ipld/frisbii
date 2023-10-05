@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"errors"
 	"net/url"
 	"path/filepath"
@@ -55,6 +56,11 @@ var Flags = []cli.Flag{
 		Usage: "maximum number of bytes to send in a response (use 0 for no limit)",
 		Value: "100MiB",
 	},
+	&cli.IntFlag{
+		Name:  "compression-level",
+		Usage: "compression level to use for responses, 0-9, 0 is no compression, 9 is maximum compression",
+		Value: gzip.NoCompression,
+	},
 	&cli.BoolFlag{
 		Name:  "verbose",
 		Usage: "enable verbose debug logging to stderr, same as setting GOLOG_LOG_LEVEL=DEBUG",
@@ -78,6 +84,7 @@ type Config struct {
 	LogFile             string
 	MaxResponseDuration time.Duration
 	MaxResponseBytes    int64
+	CompressionLevel    int
 	Verbose             bool
 }
 
@@ -124,6 +131,8 @@ func ToConfig(c *cli.Context) (Config, error) {
 		}
 	}
 
+	compressionLevel := c.Int("compression-level")
+
 	return Config{
 		Cars:                carPaths,
 		Listen:              listen,
@@ -134,6 +143,7 @@ func ToConfig(c *cli.Context) (Config, error) {
 		LogFile:             logFile,
 		MaxResponseDuration: maxResponseDuration,
 		MaxResponseBytes:    int64(maxResponseBytes),
+		CompressionLevel:    compressionLevel,
 		Verbose:             verbose,
 	}, nil
 }

@@ -1,6 +1,7 @@
 package frisbii
 
 import (
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
@@ -26,14 +28,13 @@ type ErrorLogger interface {
 // HttpIpfs is an http.Handler that serves IPLD data via HTTP according to the
 // Trustless Gateway specification.
 type HttpIpfs struct {
-	ctx  context.Context
-	lsys linking.LinkSystem
-	cfg  *httpOptions
+	handlerFunc http.HandlerFunc
 }
 
 type httpOptions struct {
 	MaxResponseDuration time.Duration
 	MaxResponseBytes    int64
+	CompressionLevel    int
 }
 
 type HttpOption func(*httpOptions)
@@ -62,145 +63,193 @@ func WithMaxResponseBytes(b int64) HttpOption {
 	}
 }
 
+// WithCompressionLevel sets the compression level for the gzip compression
+// applied to the response. This allows for a trade-off between CPU and
+// bandwidth. By default, the compression level is set to gzip.NoCompression;
+// which means compression will be disabled.
+//
+// Other recommended choices are gzip.BestSpeed (1), gzip.BestCompression (9),
+// and gzip.DefaultCompression (typically 6).
+func WithCompressionLevel(l int) HttpOption {
+	return func(o *httpOptions) {
+		o.CompressionLevel = l
+	}
+}
+
+// NewHttpIpfs returns an http.Handler that serves IPLD data via HTTP according
+// to the Trustless Gateway specification.
 func NewHttpIpfs(
 	ctx context.Context,
 	lsys linking.LinkSystem,
 	opts ...HttpOption,
 ) *HttpIpfs {
-	cfg := &httpOptions{}
+	cfg := toConfig(opts)
+	handlerFunc := NewHttpIpfsHandlerFunc(ctx, lsys, opts...)
+	if cfg.CompressionLevel != gzip.NoCompression {
+		gzipHandler, err := gziphandler.NewGzipLevelHandler(cfg.CompressionLevel)
+		if err != nil {
+			panic(err)
+		}
+		// mildly awkward level of wrapping going on here but HttpIpfs is really
+		// just a HandlerFunc->Handler converter
+		handlerFunc = gzipHandler(&HttpIpfs{handlerFunc: handlerFunc}).ServeHTTP
+	}
+	return &HttpIpfs{handlerFunc: handlerFunc}
+}
+
+func toConfig(opts []HttpOption) *httpOptions {
+	cfg := &httpOptions{
+		CompressionLevel: gzip.NoCompression,
+	}
 	for _, opt := range opts {
 		opt(cfg)
 	}
-
-	return &HttpIpfs{
-		ctx:  ctx,
-		lsys: lsys,
-		cfg:  cfg,
-	}
+	return cfg
 }
 
 func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	ctx := hi.ctx
-	if hi.cfg.MaxResponseDuration > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, hi.cfg.MaxResponseDuration)
-		defer cancel()
-	}
+	hi.handlerFunc(res, req)
+}
 
-	var rootCid cid.Cid
-	bytesWrittenCh := make(chan struct{})
+func NewHttpIpfsHandlerFunc(
+	ctx context.Context,
+	lsys linking.LinkSystem,
+	opts ...HttpOption,
+) http.HandlerFunc {
+	cfg := toConfig(opts)
 
-	logError := func(status int, err error) {
-		select {
-		case <-bytesWrittenCh:
-			cs := "unknown"
-			if rootCid.Defined() {
-				cs = rootCid.String()
-			}
-			logger.Debugw("forcing unclean close", "cid", cs, "status", status, "err", err)
-			if err := closeWithUnterminatedChunk(res); err != nil {
-				log := logger.Infow
-				if strings.Contains(err.Error(), "use of closed network connection") {
-					log = logger.Debugw // it's just not as interesting in this case
+	return func(res http.ResponseWriter, req *http.Request) {
+		reqCtx := ctx
+		if cfg.MaxResponseDuration > 0 {
+			var cancel context.CancelFunc
+			reqCtx, cancel = context.WithTimeout(ctx, cfg.MaxResponseDuration)
+			defer cancel()
+		}
+
+		var rootCid cid.Cid
+		bytesWrittenCh := make(chan struct{})
+
+		logError := func(status int, err error) {
+			select {
+			case <-bytesWrittenCh:
+				cs := "unknown"
+				if rootCid.Defined() {
+					cs = rootCid.String()
 				}
-				log("unable to send early termination", "err", err)
+				logger.Debugw("forcing unclean close", "cid", cs, "status", status, "err", err)
+				if err := closeWithUnterminatedChunk(res); err != nil {
+					log := logger.Infow
+					if strings.Contains(err.Error(), "use of closed network connection") {
+						log = logger.Debugw // it's just not as interesting in this case
+					}
+					log("unable to send early termination", "err", err)
+				}
+				return
+			default:
+				res.WriteHeader(status)
+				if _, werr := res.Write([]byte(err.Error())); werr != nil {
+					logger.Debugw("unable to write error to response", "err", werr)
+				}
 			}
-			return
+
+			if lrw, ok := res.(ErrorLogger); ok {
+				lrw.LogError(status, err)
+			} else {
+				logger.Debugf("error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
+			}
+		}
+
+		// filter out everything but GET requests
+		switch req.Method {
+		case http.MethodGet:
+			break
 		default:
-			res.WriteHeader(status)
-			if _, werr := res.Write([]byte(err.Error())); werr != nil {
-				logger.Debugw("unable to write error to response", "err", werr)
+			res.Header().Add("Allow", http.MethodGet)
+			logError(http.StatusMethodNotAllowed, errors.New("method not allowed"))
+			return
+		}
+
+		path := datamodel.ParsePath(req.URL.Path)
+		_, path = path.Shift() // remove /ipfs
+
+		// check if CID path param is missing
+		if path.Len() == 0 {
+			// not a valid path to hit
+			logError(http.StatusNotFound, errors.New("not found"))
+			return
+		}
+
+		// get the preferred `Accept` header if one exists; we should be able to
+		// handle whatever comes back from here, primarily we're looking for
+		// the `dups` parameter
+		accept, err := trustlesshttp.CheckFormat(req)
+		if err != nil {
+			logError(http.StatusBadRequest, err)
+			return
+		}
+
+		fileName, err := trustlesshttp.ParseFilename(req)
+		if err != nil {
+			logError(http.StatusBadRequest, err)
+			return
+		}
+
+		// validate CID path parameter
+		var cidSeg datamodel.PathSegment
+		cidSeg, path = path.Shift()
+		if rootCid, err = cid.Parse(cidSeg.String()); err != nil {
+			logError(http.StatusBadRequest, errors.New("failed to parse CID path parameter"))
+			return
+		}
+
+		dagScope, err := trustlesshttp.ParseScope(req)
+		if err != nil {
+			logError(http.StatusBadRequest, err)
+			return
+		}
+
+		byteRange, err := trustlesshttp.ParseByteRange(req)
+		if err != nil {
+			logError(http.StatusBadRequest, err)
+			return
+		}
+
+		request := trustlessutils.Request{
+			Root:       rootCid,
+			Path:       path.String(),
+			Scope:      dagScope,
+			Bytes:      byteRange,
+			Duplicates: accept.Duplicates,
+		}
+
+		if fileName == "" {
+			fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
+		}
+
+		writer := newIpfsResponseWriter(res, cfg.MaxResponseBytes, func() {
+			// called once we start writing blocks into the CAR (on the first Put())
+			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+			res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
+			res.Header().Set("Content-Type", accept.WithMimeType(trustlesshttp.MimeTypeCar).WithQuality(1).String())
+			etag := request.Etag()
+			if _, ok := res.(*gziphandler.GzipResponseWriter); ok {
+				// there are conditions where we may have a GzipResponseWriter but the
+				// response will not be compressed, but they are related to very small
+				// response sizes so this shouldn't matter (much)
+				etag = etag[:len(etag)-1] + ".gz\""
 			}
+			res.Header().Set("Etag", etag)
+			res.Header().Set("X-Content-Type-Options", "nosniff")
+			res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
+			res.Header().Set("Vary", "Accept, Accept-Encoding")
+
+			close(bytesWrittenCh)
+		})
+
+		if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
+			logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
+			logError(http.StatusInternalServerError, err)
 		}
-
-		if lrw, ok := res.(ErrorLogger); ok {
-			lrw.LogError(status, err)
-		} else {
-			logger.Debugf("error handling request from [%s] for [%s] status=%d, msg=%s", req.RemoteAddr, req.URL, status, err.Error())
-		}
-	}
-
-	// filter out everything but GET requests
-	switch req.Method {
-	case http.MethodGet:
-		break
-	default:
-		res.Header().Add("Allow", http.MethodGet)
-		logError(http.StatusMethodNotAllowed, errors.New("method not allowed"))
-		return
-	}
-
-	path := datamodel.ParsePath(req.URL.Path)
-	_, path = path.Shift() // remove /ipfs
-
-	// check if CID path param is missing
-	if path.Len() == 0 {
-		// not a valid path to hit
-		logError(http.StatusNotFound, errors.New("not found"))
-		return
-	}
-
-	// get the preferred `Accept` header if one exists; we should be able to
-	// handle whatever comes back from here, primarily we're looking for
-	// the `dups` parameter
-	accept, err := trustlesshttp.CheckFormat(req)
-	if err != nil {
-		logError(http.StatusBadRequest, err)
-		return
-	}
-
-	fileName, err := trustlesshttp.ParseFilename(req)
-	if err != nil {
-		logError(http.StatusBadRequest, err)
-		return
-	}
-
-	// validate CID path parameter
-	var cidSeg datamodel.PathSegment
-	cidSeg, path = path.Shift()
-	if rootCid, err = cid.Parse(cidSeg.String()); err != nil {
-		logError(http.StatusBadRequest, errors.New("failed to parse CID path parameter"))
-		return
-	}
-
-	dagScope, err := trustlesshttp.ParseScope(req)
-	if err != nil {
-		logError(http.StatusBadRequest, err)
-		return
-	}
-
-	byteRange, err := trustlesshttp.ParseByteRange(req)
-	if err != nil {
-		logError(http.StatusBadRequest, err)
-		return
-	}
-
-	request := trustlessutils.Request{
-		Root:       rootCid,
-		Path:       path.String(),
-		Scope:      dagScope,
-		Bytes:      byteRange,
-		Duplicates: accept.Duplicates,
-	}
-
-	if fileName == "" {
-		fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
-	}
-
-	writer := newIpfsResponseWriter(res, hi.cfg.MaxResponseBytes, func() {
-		// called once we start writing blocks into the CAR (on the first Put())
-		res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
-		res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
-		res.Header().Set("Content-Type", accept.WithMimeType(trustlesshttp.MimeTypeCar).WithQuality(1).String())
-		res.Header().Set("Etag", request.Etag())
-		res.Header().Set("X-Content-Type-Options", "nosniff")
-		res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
-		close(bytesWrittenCh)
-	})
-
-	if err := StreamCar(ctx, hi.lsys, writer, request); err != nil {
-		logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
-		logError(http.StatusInternalServerError, err)
 	}
 }
 

@@ -50,6 +50,9 @@ func NewFrisbiiServer(
 	if err != nil {
 		return nil, err
 	}
+	if logWriter == nil {
+		logWriter = io.Discard
+	}
 	return &FrisbiiServer{
 		ctx:         ctx,
 		logWriter:   logWriter,
@@ -65,14 +68,13 @@ func (fs *FrisbiiServer) Addr() net.Addr {
 
 func (fs *FrisbiiServer) Serve() error {
 	fs.mux = http.NewServeMux()
-
 	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.lsys, fs.httpOptions...))
+	fs.mux.Handle("/", http.NotFoundHandler())
 	server := &http.Server{
 		Addr:        fs.Addr().String(),
 		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
 		Handler:     NewLogMiddleware(fs.mux, fs.logWriter),
 	}
-	fs.mux.Handle("/", http.NotFoundHandler())
 	logger.Debugf("Serve() server on %s", fs.Addr().String())
 	return server.Serve(fs.listener)
 }

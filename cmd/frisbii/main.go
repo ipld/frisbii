@@ -128,6 +128,7 @@ func action(c *cli.Context) error {
 		config.Listen,
 		frisbii.WithMaxResponseDuration(config.MaxResponseDuration),
 		frisbii.WithMaxResponseBytes(config.MaxResponseBytes),
+		frisbii.WithCompressionLevel(config.CompressionLevel),
 	)
 	if err != nil {
 		return err
