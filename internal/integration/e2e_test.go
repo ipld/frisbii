@@ -26,9 +26,15 @@ import (
 const rseed = 1234
 
 func TestIpniAndFetchIntegration(t *testing.T) {
-	// skip if windows, just too slow in CI, maybe revisit this later
-	if os.Getenv("CI") != "" && runtime.GOOS == "windows" {
-		t.Skip("skipping on windows in CI")
+	switch os.Getenv("CI") {
+	case "":
+		// skip when not running in a CI environment
+		t.Skip("skipping when not in CI environment")
+	default:
+		if runtime.GOOS == "windows" {
+			// skip if windows, just too slow in CI, maybe revisit this later
+			t.Skip("skipping on windows in CI")
+		} // else in CI and we're good to go
 	}
 
 	for _, testCase := range []struct {

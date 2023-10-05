@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/ipfs/go-log/v2"
@@ -19,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/multierr"
 	"golang.org/x/term"
 )
 
@@ -102,9 +105,22 @@ func action(c *cli.Context) error {
 	}
 
 	multicar := frisbii.NewMultiReadableStorage()
+	var wg sync.WaitGroup
+	loader.SetStatus(fmt.Sprintf("Loading CARs (%d / %d) ...", 0, len(config.Cars)))
+	var loaded int64
+	err = nil
 	for ii, carPath := range config.Cars {
-		loader.SetStatus(fmt.Sprintf("Loading CARs (%d / %d) ...", ii+1, len(config.Cars)))
-		util.LoadCar(multicar, carPath)
+		wg.Add(1)
+		go func(ii int, carPath string) {
+			err = multierr.Append(err, util.LoadCar(multicar, carPath))
+			wg.Done()
+			l := atomic.AddInt64(&loaded, 1)
+			loader.SetStatus(fmt.Sprintf("Loading CARs (%d / %d) ...", l, len(config.Cars)))
+		}(ii, carPath)
+	}
+	wg.Wait()
+	if err != nil {
+		return err
 	}
 
 	loader.SetStatus("Loaded CARs, starting server ...")
