@@ -3,6 +3,7 @@ module github.com/ipld/frisbii
 go 1.20
 
 require (
+	github.com/NYTimes/gziphandler v1.1.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-block-format v0.2.0
 	github.com/ipfs/go-cid v0.4.1
@@ -12,9 +13,10 @@ require (
 	github.com/ipfs/go-unixfsnode v1.9.0
 	github.com/ipld/go-car/v2 v2.13.1
 	github.com/ipld/go-codec-dagpb v1.6.0
+	github.com/ipld/go-fixtureplate v0.0.2
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-trustless-utils v0.3.1
-	github.com/ipld/ipld/specs v0.0.0-20230907004443-0e4ff95ff474
+	github.com/ipld/ipld/specs v0.0.0-20230927010225-ef4dbd703269
 	github.com/ipni/go-libipni v0.5.2
 	github.com/ipni/index-provider v0.14.2
 	github.com/ipni/storetheindex v0.8.1

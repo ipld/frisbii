@@ -35,6 +35,7 @@ Full argument list:
 * `--log-file` - path to file to append HTTP request and error logs to. Defaults to `stdout`.
 * `--max-response-duration` - maximum duration to spend responding to a request. Defaults to `5m`.
 * `--max-response-bytes` - maximum size of a response from IPNI. Defaults to `100MiB`.
+* `--compression-level` - compression level to use for HTTP response data where the client accepts it. `0`-`9`, `0` is no compression, `9` is maximum compression. Defaults to `0` (none).
 * `--verbose` - enable verbose logging. Defaults to `false`. Same as using `GOLOG_LOG_LEVEL=debug` as an environment variable. `GOLOG_LOG_LEVEL` can be used for more fine-grained control of log output.
 * `--help` - show help.
 
