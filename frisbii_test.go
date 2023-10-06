@@ -131,7 +131,7 @@ func TestFrisbiiServer(t *testing.T) {
 					rdr, err = gzip.NewReader(response.Body)
 					req.NoError(err)
 				} // else should be handled by the go client
-				req.Regexp(`\.car\.\w{12,13}\.gz"$`, response.Header.Get("Etag"))
+				req.Regexp(`^"`+rootEnt.Root.String()+`\.car\.\w{2,13}\.gz"$`, response.Header.Get("Etag"))
 			} else {
 				req.Regexp(`\.car\.\w{12,13}"$`, response.Header.Get("Etag"))
 			}
