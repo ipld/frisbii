@@ -15,6 +15,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
+	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	trustlessutils "github.com/ipld/go-trustless-utils"
 	trustlesshttp "github.com/ipld/go-trustless-utils/http"
 )
@@ -177,14 +178,16 @@ func NewHttpIpfsHandlerFunc(
 			return
 		}
 
-		// get the preferred `Accept` header if one exists; we should be able to
-		// handle whatever comes back from here, primarily we're looking for
-		// the `dups` parameter
-		accept, err := trustlesshttp.CheckFormat(req)
+		// get the preferred list of  `Accept` headers if one exists; we should be
+		// able to handle whatever comes back from here.
+		// firsly we are looking for raw vs car, secondarily we're looking for the
+		// `dups` parameter if car.
+		accepts, err := trustlesshttp.CheckFormat(req)
 		if err != nil {
 			logError(http.StatusBadRequest, err)
 			return
 		}
+		accept := accepts[0]
 
 		fileName, err := trustlesshttp.ParseFilename(req)
 		if err != nil {
@@ -200,16 +203,30 @@ func NewHttpIpfsHandlerFunc(
 			return
 		}
 
-		dagScope, err := trustlesshttp.ParseScope(req)
-		if err != nil {
-			logError(http.StatusBadRequest, err)
-			return
-		}
+		var (
+			dagScope  trustlessutils.DagScope   = trustlessutils.DagScopeAll
+			byteRange *trustlessutils.ByteRange = nil
+		)
 
-		byteRange, err := trustlesshttp.ParseByteRange(req)
-		if err != nil {
-			logError(http.StatusBadRequest, err)
-			return
+		if accept.IsRaw() {
+			if path.Len() > 0 {
+				logError(http.StatusBadRequest, errors.New("path not supported for raw requests"))
+				return
+			}
+		} else {
+			accept = accept.WithMimeType(trustlesshttp.MimeTypeCar) // correct for application/* and */*
+
+			dagScope, err = trustlesshttp.ParseScope(req)
+			if err != nil {
+				logError(http.StatusBadRequest, err)
+				return
+			}
+
+			byteRange, err = trustlesshttp.ParseByteRange(req)
+			if err != nil {
+				logError(http.StatusBadRequest, err)
+				return
+			}
 		}
 
 		request := trustlessutils.Request{
@@ -228,7 +245,7 @@ func NewHttpIpfsHandlerFunc(
 			// called once we start writing blocks into the CAR (on the first Put())
 			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 			res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
-			res.Header().Set("Content-Type", accept.WithMimeType(trustlesshttp.MimeTypeCar).WithQuality(1).String())
+			res.Header().Set("Content-Type", accept.WithQuality(1).String())
 			etag := request.Etag()
 			if _, ok := res.(*gziphandler.GzipResponseWriter); ok {
 				// there are conditions where we may have a GzipResponseWriter but the
@@ -252,9 +269,19 @@ func NewHttpIpfsHandlerFunc(
 			}
 		}
 
-		if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
-			logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
-			logError(http.StatusInternalServerError, err)
+		if accept.IsRaw() {
+			// send the raw block bytes as the response
+			if byts, err := lsys.LoadRaw(linking.LinkContext{Ctx: reqCtx}, cidlink.Link{Cid: rootCid}); err != nil {
+				logError(http.StatusInternalServerError, err)
+			} else if _, err := writer.Write(byts); err != nil {
+				logError(http.StatusInternalServerError, err)
+			}
+		} else {
+			// IsCar, so stream the CAR as the response
+			if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
+				logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
+				logError(http.StatusInternalServerError, err)
+			}
 		}
 	}
 }

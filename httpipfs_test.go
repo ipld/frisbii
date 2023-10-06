@@ -86,6 +86,13 @@ func TestHttpIpfsHandler(t *testing.T) {
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedBody:       "failed to load root node: failed to load root CID: ipld: could not find bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 		},
+		{
+			name:               "bad raw request",
+			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi/path/not/allowed",
+			accept:             trustlesshttp.MimeTypeRaw,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedBody:       "path not supported for raw requests",
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			req := require.New(t)
@@ -107,7 +114,7 @@ func TestHttpIpfsHandler(t *testing.T) {
 func TestHttpIpfsIntegration_Unixfs20mVariety(t *testing.T) {
 	req := require.New(t)
 
-	testCases, _, err := trustlesspathing.Unixfs20mVarietyCases()
+	testCases, rootCid, err := trustlesspathing.Unixfs20mVarietyCases()
 	req.NoError(err)
 	storage, closer, err := trustlesspathing.Unixfs20mVarietyReadableStorage()
 	req.NoError(err)
@@ -119,7 +126,9 @@ func TestHttpIpfsIntegration_Unixfs20mVariety(t *testing.T) {
 	lsys.SetReadStorage(storage)
 
 	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
-	testServer := httptest.NewServer(handler)
+	mux := http.NewServeMux()
+	mux.Handle("/ipfs/", handler)
+	testServer := httptest.NewServer(mux)
 	defer testServer.Close()
 
 	for _, tc := range testCases {
@@ -152,6 +161,23 @@ func TestHttpIpfsIntegration_Unixfs20mVariety(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("raw block", func(t *testing.T) {
+		req := require.New(t)
+
+		request, err := http.NewRequest(http.MethodGet, testServer.URL+"/ipfs/"+rootCid.String(), nil)
+		req.NoError(err)
+		request.Header.Set("Accept", trustlesshttp.MimeTypeRaw)
+		res, err := http.DefaultClient.Do(request)
+		req.NoError(err)
+		req.Equal(http.StatusOK, res.StatusCode)
+		req.Equal(trustlesshttp.MimeTypeRaw, res.Header.Get("Content-Type"))
+		gotBlock, err := io.ReadAll(res.Body)
+		req.NoError(err)
+		expectBlock, err := storage.Get(context.Background(), rootCid.KeyString())
+		req.NoError(err)
+		req.Equal(expectBlock, gotBlock)
+	})
 }
 
 func TestHttpIpfsDuplicates(t *testing.T) {
