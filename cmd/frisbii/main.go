@@ -139,9 +139,9 @@ func action(c *cli.Context) error {
 
 	server, err := frisbii.NewFrisbiiServer(
 		ctx,
-		logWriter,
 		lsys,
 		config.Listen,
+		frisbii.WithLogWriter(logWriter),
 		frisbii.WithMaxResponseDuration(config.MaxResponseDuration),
 		frisbii.WithMaxResponseBytes(config.MaxResponseBytes),
 		frisbii.WithCompressionLevel(config.CompressionLevel),

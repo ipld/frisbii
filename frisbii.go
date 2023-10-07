@@ -3,7 +3,6 @@ package frisbii
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 
@@ -26,7 +25,6 @@ var advMetadata = metadata.Default.New(metadata.IpfsGatewayHttp{})
 type FrisbiiServer struct {
 	ctx         context.Context
 	lsys        linking.LinkSystem
-	logWriter   io.Writer
 	httpOptions []HttpOption
 
 	listener        net.Listener
@@ -41,7 +39,6 @@ type IndexerProvider interface {
 
 func NewFrisbiiServer(
 	ctx context.Context,
-	logWriter io.Writer,
 	lsys linking.LinkSystem,
 	address string,
 	httpOptions ...HttpOption,
@@ -50,12 +47,8 @@ func NewFrisbiiServer(
 	if err != nil {
 		return nil, err
 	}
-	if logWriter == nil {
-		logWriter = io.Discard
-	}
 	return &FrisbiiServer{
 		ctx:         ctx,
-		logWriter:   logWriter,
 		lsys:        lsys,
 		httpOptions: httpOptions,
 		listener:    listener,
@@ -73,7 +66,7 @@ func (fs *FrisbiiServer) Serve() error {
 	server := &http.Server{
 		Addr:        fs.Addr().String(),
 		BaseContext: func(listener net.Listener) context.Context { return fs.ctx },
-		Handler:     NewLogMiddleware(fs.mux, fs.logWriter),
+		Handler:     NewLogMiddleware(fs.mux, fs.httpOptions...),
 	}
 	logger.Debugf("Serve() server on %s", fs.Addr().String())
 	return server.Serve(fs.listener)

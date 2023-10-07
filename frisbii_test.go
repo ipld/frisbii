@@ -6,6 +6,8 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -83,7 +85,7 @@ func TestFrisbiiServer(t *testing.T) {
 	lsys.SetWriteStorage(store)
 	lsys.TrustedStorage = true
 
-	entity, err := unixfsgen.Parse("file:1MiB")
+	entity, err := unixfsgen.Parse("file:1MiB{zero}")
 	require.NoError(t, err)
 	t.Logf("Generating: %s", entity.Describe(""))
 	rootEnt, err := entity.Generate(lsys, rndReader)
@@ -95,11 +97,25 @@ func TestFrisbiiServer(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			opts := []frisbii.HttpOption{}
+			opts := []frisbii.HttpOption{
+				frisbii.WithLogHandler(func(time time.Time, remoteAddr, method string, url url.URL, status int, duration time.Duration, bytes int, compressionRatio, userAgent, msg string) {
+					t.Logf("%s %s %s %d %s %d %s %s %s", remoteAddr, method, url.String(), status, duration, bytes, compressionRatio, userAgent, msg)
+					req.Equal("GET", method)
+					req.Equal("/ipfs/"+rootEnt.Root.String(), url.Path)
+					req.Equal(http.StatusOK, status)
+					if tc.expectGzip {
+						req.NotEqual("-", compressionRatio)
+						// convert compressionRatio string to a float64
+						compressionRatio, err := strconv.ParseFloat(compressionRatio, 64)
+						req.NoError(err)
+						req.True(compressionRatio > 10, "compression ratio (%s) should be > 10", compressionRatio) // it's all zeros
+					}
+				}),
+			}
 			if tc.serverCompressionLevel != gzip.NoCompression {
 				opts = append(opts, frisbii.WithCompressionLevel(tc.serverCompressionLevel))
 			}
-			server, err := frisbii.NewFrisbiiServer(ctx, nil, lsys, "localhost:0", opts...)
+			server, err := frisbii.NewFrisbiiServer(ctx, lsys, "localhost:0", opts...)
 			req.NoError(err)
 			go func() {
 				req.NoError(server.Serve())

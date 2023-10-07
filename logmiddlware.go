@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,28 +16,53 @@ import (
 var _ http.Handler = (*LogMiddleware)(nil)
 var _ ErrorLogger = (*LoggingResponseWriter)(nil)
 
+type LogHandler func(
+	time time.Time,
+	remoteAddr string,
+	method string,
+	url url.URL,
+	status int,
+	duration time.Duration,
+	bytes int,
+	compressionRatio string,
+	userAgent string,
+	msg string,
+)
+
 // LogMiddlware is a middleware that logs requests to the given io.Writer.
 // it wraps requests in a LoggingResponseWriter that can be used to log
 // standardised messages to the writer.
 type LogMiddleware struct {
-	next      http.Handler
-	logWriter io.Writer
+	next       http.Handler
+	logWriter  io.Writer
+	logHandler LogHandler
 }
 
-func NewLogMiddleware(next http.Handler, logWriter io.Writer) *LogMiddleware {
+// NewLogMiddleware creates a new LogMiddleware to insert into an HTTP call
+// chain.
+//
+// The WithLogWriter option can be used to set the writer to log to.
+//
+// The WithLogHandler option can be used to set a custom log handler.
+func NewLogMiddleware(next http.Handler, httpOptions ...HttpOption) *LogMiddleware {
+	cfg := toConfig(httpOptions)
 	return &LogMiddleware{
-		next:      next,
-		logWriter: logWriter,
+		next:       next,
+		logWriter:  cfg.LogWriter,
+		logHandler: cfg.LogHandler,
 	}
 }
 
 func (lm *LogMiddleware) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	lres := NewLoggingResponseWriter(res, req, lm.logWriter)
-	start := time.Now()
-	defer func() {
-		lres.Log(lres.status, time.Since(start), lres.sentBytes, lres.CompressionRatio(), "")
-	}()
-	lm.next.ServeHTTP(lres, req)
+	if lm.logHandler != nil || lm.logWriter != nil {
+		lres := NewLoggingResponseWriter(res, req, lm.logWriter, lm.logHandler)
+		start := time.Now()
+		defer func() {
+			lres.Log(lres.status, start, lres.sentBytes, lres.CompressionRatio(), "")
+		}()
+		res = lres
+	}
+	lm.next.ServeHTTP(res, req)
 }
 
 var _ http.ResponseWriter = (*LoggingResponseWriter)(nil)
@@ -44,6 +70,7 @@ var _ http.ResponseWriter = (*LoggingResponseWriter)(nil)
 type LoggingResponseWriter struct {
 	http.ResponseWriter
 	logWriter  io.Writer
+	logHandler LogHandler
 	req        *http.Request
 	status     int
 	wroteBytes int
@@ -51,11 +78,19 @@ type LoggingResponseWriter struct {
 	wrote      bool
 }
 
-func NewLoggingResponseWriter(w http.ResponseWriter, req *http.Request, logWriter io.Writer) *LoggingResponseWriter {
+// NewLoggingResponseWriter creates a new LoggingResponseWriter that is used
+// on a per-request basis to log information about the request.
+func NewLoggingResponseWriter(
+	w http.ResponseWriter,
+	req *http.Request,
+	logWriter io.Writer,
+	logHandler LogHandler,
+) *LoggingResponseWriter {
 	return &LoggingResponseWriter{
 		ResponseWriter: w,
 		req:            req,
 		logWriter:      logWriter,
+		logHandler:     logHandler,
 	}
 }
 
@@ -70,29 +105,52 @@ func (w *LoggingResponseWriter) CompressionRatio() string {
 	return s
 }
 
-func (w *LoggingResponseWriter) Log(status int, duration time.Duration, bytes int, CompressionRatio string, msg string) {
+func (w *LoggingResponseWriter) Log(
+	status int,
+	start time.Time,
+	bytes int,
+	CompressionRatio string,
+	msg string,
+) {
 	if w.wrote {
 		return
 	}
+	duration := time.Since(start)
 	w.wrote = true
 	remoteAddr := w.req.RemoteAddr
 	if ss := strings.Split(remoteAddr, ":"); len(ss) > 0 {
 		remoteAddr = ss[0]
 	}
-	fmt.Fprintf(
-		w.logWriter,
-		"%s %s %s \"%s\" %d %d %d %s %s %s\n",
-		time.Now().Format(time.RFC3339),
-		remoteAddr,
-		w.req.Method,
-		w.req.URL,
-		status,
-		duration.Milliseconds(),
-		bytes,
-		CompressionRatio,
-		strconv.Quote(w.req.UserAgent()),
-		strconv.Quote(msg),
-	)
+	if w.logWriter != nil {
+		fmt.Fprintf(
+			w.logWriter,
+			"%s %s %s \"%s\" %d %d %d %s %s %s\n",
+			start.Format(time.RFC3339),
+			remoteAddr,
+			w.req.Method,
+			w.req.URL,
+			status,
+			duration.Milliseconds(),
+			bytes,
+			CompressionRatio,
+			strconv.Quote(w.req.UserAgent()),
+			strconv.Quote(msg),
+		)
+	}
+	if w.logHandler != nil {
+		w.logHandler(
+			start,
+			remoteAddr,
+			w.req.Method,
+			*w.req.URL,
+			status,
+			duration,
+			bytes,
+			CompressionRatio,
+			strconv.Quote(w.req.UserAgent()),
+			strconv.Quote(msg),
+		)
+	}
 }
 
 func (w *LoggingResponseWriter) LogError(status int, err error) {
@@ -106,7 +164,7 @@ func (w *LoggingResponseWriter) LogError(status int, err error) {
 			break
 		}
 	}
-	w.Log(status, 0, 0, "-", msg)
+	w.Log(status, time.Now(), 0, "-", msg)
 	w.status = status
 	if w.sentBytes == 0 {
 		http.Error(w.ResponseWriter, strconv.Quote(msg), status)

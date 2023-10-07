@@ -36,6 +36,8 @@ type httpOptions struct {
 	MaxResponseDuration time.Duration
 	MaxResponseBytes    int64
 	CompressionLevel    int
+	LogWriter           io.Writer
+	LogHandler          LogHandler
 }
 
 type HttpOption func(*httpOptions)
@@ -74,6 +76,43 @@ func WithMaxResponseBytes(b int64) HttpOption {
 func WithCompressionLevel(l int) HttpOption {
 	return func(o *httpOptions) {
 		o.CompressionLevel = l
+	}
+}
+
+// WithLogWriter sets the writer that will be used to log requests. By default,
+// requests are not logged.
+//
+// The log format for requests (including errors) is roughly equivalent to a
+// standard nginx or Apache log format; that is, a space-separated list of
+// elements, where the elements that may contain spaces are quoted. The format
+// of each line can be specified as:
+//
+//	%s %s %s "%s" %d %d %d %s "%s" "%s"
+//
+// Where the elements are:
+//
+// 1. RFC 3339 timestamp
+// 2. Remote address
+// 3. Method
+// 4. Path
+// 5. Response status code
+// 6. Response duration (in milliseconds)
+// 7. Response size
+// 8. Compression ratio (or `-` if no compression)
+// 9. User agent
+// 10. Error (or `""` if no error)
+func WithLogWriter(w io.Writer) HttpOption {
+	return func(o *httpOptions) {
+		o.LogWriter = w
+	}
+}
+
+// WithLogHandler sets a handler function that will be used to log requests. By
+// default, requests are not logged. This is an alternative to WithLogWriter
+// that allows for more control over the logging.
+func WithLogHandler(h LogHandler) HttpOption {
+	return func(o *httpOptions) {
+		o.LogHandler = h
 	}
 }
 
@@ -243,11 +282,15 @@ func NewHttpIpfsHandlerFunc(
 
 		var writer io.Writer = newIpfsResponseWriter(res, cfg.MaxResponseBytes, func() {
 			// called once we start writing blocks into the CAR (on the first Put())
+
+			close(bytesWrittenCh) // signal that we've started writing, so we can't log errors to the response now
+
 			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 			res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
 			res.Header().Set("Content-Type", accept.WithQuality(1).String())
 			etag := request.Etag()
-			if _, ok := res.(*gziphandler.GzipResponseWriter); ok {
+			switch res.(type) {
+			case *gziphandler.GzipResponseWriter, gziphandler.GzipResponseWriterWithCloseNotify:
 				// there are conditions where we may have a GzipResponseWriter but the
 				// response will not be compressed, but they are related to very small
 				// response sizes so this shouldn't matter (much)
@@ -257,8 +300,6 @@ func NewHttpIpfsHandlerFunc(
 			res.Header().Set("X-Content-Type-Options", "nosniff")
 			res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
 			res.Header().Set("Vary", "Accept, Accept-Encoding")
-
-			close(bytesWrittenCh)
 		})
 
 		if lrw, ok := res.(*LoggingResponseWriter); ok {
