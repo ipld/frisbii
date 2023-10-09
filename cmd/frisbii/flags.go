@@ -44,7 +44,8 @@ var Flags = []cli.Flag{
 	},
 	&cli.StringFlag{
 		Name:  "log-file",
-		Usage: "path to file to append HTTP request and error logs to, defaults to stdout",
+		Usage: "path to file to append HTTP request and error logs to, defaults to stdout (-)",
+		Value: "-",
 	},
 	&cli.DurationFlag{
 		Name:  "max-response-duration",

@@ -94,6 +94,15 @@ func NewLoggingResponseWriter(
 	}
 }
 
+// WroteBytes can be called by the base writer, on each Write call, to indicate
+// how many bytes were written in to the response. If LoggingResponseWriter is
+// wrapping a compression writer, this should be the number of bytes written
+// to the compression writer, which will be different than the number of bytes
+// written to this writer; hence we can calculate the compression ratio.
+func (w *LoggingResponseWriter) WroteBytes(n int) {
+	w.wroteBytes += n
+}
+
 func (w *LoggingResponseWriter) CompressionRatio() string {
 	if w.sentBytes == 0 || w.wroteBytes == 0 || w.wroteBytes == w.sentBytes {
 		return "-"

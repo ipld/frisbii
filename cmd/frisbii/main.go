@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/signal"
@@ -124,8 +125,12 @@ func action(c *cli.Context) error {
 	}
 
 	loader.SetStatus("Loaded CARs, starting server ...")
-	logWriter := c.App.Writer
-	if config.LogFile != "" {
+	var logWriter io.Writer
+	switch config.LogFile {
+	case "":
+	case "-":
+		logWriter = c.App.Writer
+	default:
 		logWriter, err = os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
