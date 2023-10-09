@@ -126,10 +126,10 @@ func NewHttpIpfs(
 	cfg := toConfig(opts)
 	handlerFunc := NewHttpIpfsHandlerFunc(ctx, lsys, opts...)
 	if cfg.CompressionLevel != gzip.NoCompression {
-		gzipHandler := gziphandler.MustNewGzipLevelHandler(cfg.CompressionLevel)
+		gzipWrapper := gziphandler.MustNewGzipLevelHandler(cfg.CompressionLevel)
 		// mildly awkward level of wrapping going on here but HttpIpfs is really
 		// just a HandlerFunc->Handler converter
-		handlerFunc = gzipHandler(&HttpIpfs{handlerFunc: handlerFunc}).ServeHTTP
+		handlerFunc = gzipWrapper(&HttpIpfs{handlerFunc: handlerFunc}).ServeHTTP
 		logger.Debugf("enabling compression with a level of %d", cfg.CompressionLevel)
 	}
 	return &HttpIpfs{handlerFunc: handlerFunc}
@@ -336,7 +336,7 @@ type countingWriter struct {
 
 func (cw *countingWriter) Write(p []byte) (int, error) {
 	n, err := cw.Writer.Write(p)
-	cw.lrw.wroteBytes += n
+	cw.lrw.WroteBytes(n)
 	return n, err
 }
 
