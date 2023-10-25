@@ -284,8 +284,8 @@ github.com/ipld/go-car/v2 v2.13.1 h1:KnlrKvEPEzr5IZHKTXLAEub+tPrzeAFQVRlSQvuxBO4
 github.com/ipld/go-car/v2 v2.13.1/go.mod h1:QkdjjFNGit2GIkpQ953KBwowuoukoM75nP/JI1iDJdo=
 github.com/ipld/go-codec-dagpb v1.6.0 h1:9nYazfyu9B1p3NAgfVdpRco3Fs2nFC72DqVsMj6rOcc=
 github.com/ipld/go-codec-dagpb v1.6.0/go.mod h1:ANzFhfP2uMJxRBr8CE+WQWs5UsNa0pYtmKZ+agnUw9s=
-github.com/ipld/go-fixtureplate v0.0.2 h1:q7dSdIXeyY5v4AAFvB6M1nPWuRzTeYcgpbeqGygSLu8=
-github.com/ipld/go-fixtureplate v0.0.2/go.mod h1:z7AnsVOetEl6sQ7j5iMyqVGrS9BgGGE4u69TtsLhJGU=
+github.com/ipld/go-fixtureplate v0.0.3 h1:Qb/rBBnYP8IiK+VLq89y2NPZ3iQeQpAi9YK3oSleVGs=
+github.com/ipld/go-fixtureplate v0.0.3/go.mod h1:i97D4Kbzvvk3OxGfwgKL3fpmzxXhpLEVpQ0mT4ek24s=
 github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0 h1:QAI/Ridj0+foHD6epbxmB4ugxz9B4vmNdYSmQLGa05E=
 github.com/ipld/go-ipld-adl-hamt v0.0.0-20220616142416-9004dbd839e0/go.mod h1:odxGcpiQZLzP5+yGu84Ljo8y3EzCvNAQKEodHNsHLXA=
 github.com/ipld/go-ipld-prime v0.21.0 h1:n4JmcpOlPDIxBcY037SVfpd1G+Sj1nKZah0m6QH9C2E=
