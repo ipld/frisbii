@@ -17,10 +17,10 @@ require (
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-trustless-utils v0.4.1
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
-	github.com/ipni/go-libipni v0.5.7
+	github.com/ipni/go-libipni v0.5.8
 	github.com/ipni/index-provider v0.14.2
 	github.com/ipni/storetheindex v0.8.13
-	github.com/libp2p/go-libp2p v0.32.1
+	github.com/libp2p/go-libp2p v0.32.2
 	github.com/multiformats/go-multiaddr v0.12.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/stretchr/testify v1.8.4
@@ -129,7 +129,7 @@ require (
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-20 v0.3.4 // indirect
-	github.com/quic-go/quic-go v0.39.3 // indirect
+	github.com/quic-go/quic-go v0.39.4 // indirect
 	github.com/quic-go/webtransport-go v0.6.0 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
