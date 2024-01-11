@@ -19,7 +19,7 @@ require (
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
 	github.com/ipni/go-libipni v0.5.9
 	github.com/ipni/index-provider v0.14.3
-	github.com/ipni/storetheindex v0.8.13
+	github.com/ipni/storetheindex v0.8.17
 	github.com/libp2p/go-libp2p v0.32.2
 	github.com/multiformats/go-multiaddr v0.12.1
 	github.com/multiformats/go-multihash v0.2.3
