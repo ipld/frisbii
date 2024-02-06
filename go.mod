@@ -21,7 +21,7 @@ require (
 	github.com/ipni/index-provider v0.14.3
 	github.com/ipni/storetheindex v0.8.19
 	github.com/libp2p/go-libp2p v0.32.2
-	github.com/multiformats/go-multiaddr v0.12.1
+	github.com/multiformats/go-multiaddr v0.12.2
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.27.1
