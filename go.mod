@@ -1,6 +1,6 @@
 module github.com/ipld/frisbii
 
-go 1.20
+go 1.21
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
@@ -30,7 +30,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/units v0.0.0-20231202071711-9a357b53e9c9 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
