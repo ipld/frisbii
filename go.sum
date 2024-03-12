@@ -254,8 +254,8 @@ github.com/ipni/go-libipni v0.6.3 h1:z/sN8q7CyBg13J20TGTjD6NAvI74Qx2lqQYZuuq5BFQ
 github.com/ipni/go-libipni v0.6.3/go.mod h1:RDN2sUK91ocD6CSH7BYBBK9zk1FsbgbBjHPtt6pGt0Y=
 github.com/ipni/index-provider v0.15.0 h1:33Zsg0nHkASQAR2PJqEuRXRuiqAmivcJ3K5aQrRsLyo=
 github.com/ipni/index-provider v0.15.0/go.mod h1:Hn/7G9v3XxFAsWoU9G+qD3y89RmiHSkOk7Uh5oqSF5c=
-github.com/ipni/storetheindex v0.8.21 h1:84jMyIgZ6dIcE6G0Vb9vgDJQ6PnMr99xifc0X/OBVQw=
-github.com/ipni/storetheindex v0.8.21/go.mod h1:oRXys/7niBUvRUWLufVDaFwMmZu6Xgaq+N0/m2+nq3c=
+github.com/ipni/storetheindex v0.8.24 h1:sfBCHZ1KFH5DSvTOR1CaBFPK5X5ZtJgBZ01vngasRxQ=
+github.com/ipni/storetheindex v0.8.24/go.mod h1:zlrNcPDCo5+F5VyHceEfj7VScRpvteg/m6vpoS7IUzc=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
 github.com/jackpal/go-nat-pmp v1.0.2/go.mod h1:QPH045xvCAeXUZOxsnwmrtiCoxIr9eob+4orBN1SBKc=
 github.com/jbenet/go-cienv v0.1.0/go.mod h1:TqNnHUmJgXau0nCzC7kXWeotg3J9W34CUv5Djy1+FlA=
