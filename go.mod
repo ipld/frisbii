@@ -17,7 +17,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-trustless-utils v0.4.1
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
-	github.com/ipni/go-libipni v0.6.5
+	github.com/ipni/go-libipni v0.6.6
 	github.com/ipni/index-provider v0.15.0
 	github.com/ipni/storetheindex v0.8.24
 	github.com/libp2p/go-libp2p v0.33.2
@@ -80,7 +80,7 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.10.0 // indirect
+	github.com/libp2p/go-libp2p-pubsub v0.10.1 // indirect
 	github.com/libp2p/go-msgio v0.3.0 // indirect
 	github.com/libp2p/go-nat v0.2.0 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
@@ -133,13 +133,13 @@ require (
 	go.uber.org/fx v1.20.1 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a // indirect
 	golang.org/x/mod v0.15.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/tools v0.18.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
