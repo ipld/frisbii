@@ -193,8 +193,8 @@ github.com/ipfs/go-detect-race v0.0.1 h1:qX/xay2W3E4Q1U7d9lNs1sU9nvguX0a7319XbyQ
 github.com/ipfs/go-detect-race v0.0.1/go.mod h1:8BNT7shDZPo99Q74BpGMK+4D8Mn4j46UU0LZ723meps=
 github.com/ipfs/go-ds-leveldb v0.5.0 h1:s++MEBbD3ZKc9/8/njrn4flZLnCuY9I79v94gBUNumo=
 github.com/ipfs/go-ds-leveldb v0.5.0/go.mod h1:d3XG9RUDzQ6V4SHi8+Xgj9j1XuEk1z82lquxrVbml/Q=
-github.com/ipfs/go-graphsync v0.16.0 h1:0BX7whXlV13Y9FZ/jRg+xaGHaGYbtGxGppKD6tncw6k=
-github.com/ipfs/go-graphsync v0.16.0/go.mod h1:WfbMW3hhmX5GQEQ+KJxsFzVJVBKgC5szfrYK7Zc7xIM=
+github.com/ipfs/go-graphsync v0.17.0 h1:1gh10v94G/vSGzfApVtbZSvSKkK906Y+2sRqewjDTm4=
+github.com/ipfs/go-graphsync v0.17.0/go.mod h1:HXHiTRIw3wrN3InMwdV+IzpBAtreEf/KqFlEibhfVgo=
 github.com/ipfs/go-ipfs-blockstore v1.3.1 h1:cEI9ci7V0sRNivqaOr0elDsamxXFxJMMMy7PTTDQNsQ=
 github.com/ipfs/go-ipfs-blockstore v1.3.1/go.mod h1:KgtZyc9fq+P2xJUiCAzbRdhhqJHvsw8u2Dlqy2MyRTE=
 github.com/ipfs/go-ipfs-blocksutil v0.0.1 h1:Eh/H4pc1hsvhzsQoMEP3Bke/aW5P5rVM1IWFJMcGIPQ=
