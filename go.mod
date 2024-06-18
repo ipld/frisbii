@@ -17,7 +17,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.21.0
 	github.com/ipld/go-trustless-utils v0.4.1
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
-	github.com/ipni/go-libipni v0.6.7
+	github.com/ipni/go-libipni v0.6.8
 	github.com/ipni/index-provider v0.15.3
 	github.com/ipni/storetheindex v0.8.32
 	github.com/libp2p/go-libp2p v0.35.1
