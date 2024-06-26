@@ -15,13 +15,15 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
+	testcmd "github.com/ipfs/go-test/cmd"
 	unixfs "github.com/ipfs/go-unixfsnode/testutil"
 	"github.com/ipld/go-car/v2"
 	"github.com/ipld/go-car/v2/storage"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
-	"github.com/ipni/storetheindex/test"
 	"github.com/stretchr/testify/require"
 )
+
+const indexerReadyMatch = "Indexer is ready"
 
 const rseed = 1234
 
@@ -57,14 +59,14 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 
-			tr := test.NewTestIpniRunner(t, ctx, t.TempDir())
+			tr := testcmd.NewRunner(t, t.TempDir())
 
 			t.Log("Running in test directory:", tr.Dir)
 
 			// install the frisbii cmd, when done in tr.Run() will use the GOPATH/GOBIN
 			// in the test directory, so we get a localised `frisbii` executable
 			frisbii := filepath.Join(tr.Dir, "frisbii")
-			tr.Run("go", "install", "../../cmd/frisbii/")
+			tr.Run(ctx, "go", "install", "../../cmd/frisbii/")
 
 			cwd, err := os.Getwd()
 			req.NoError(err)
@@ -73,26 +75,23 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 
 			// install the indexer to announce to
 			indexer := filepath.Join(tr.Dir, "storetheindex")
-			tr.Run("go", "install", "github.com/ipni/storetheindex@latest")
+			tr.Run(ctx, "go", "install", "github.com/ipni/storetheindex@latest")
 			// install the ipni cli to inspect the indexer
 			ipni := filepath.Join(tr.Dir, "ipni")
-			tr.Run("go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
+			tr.Run(ctx, "go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
 			// install lassie to perform a fetch of our content
 			lassie := filepath.Join(tr.Dir, "lassie")
-			tr.Run("go", "install", "github.com/filecoin-project/lassie/cmd/lassie@latest")
+			tr.Run(ctx, "go", "install", "github.com/filecoin-project/lassie/cmd/lassie@latest")
 
 			err = os.Chdir(cwd)
 			req.NoError(err)
 
 			// initialise and start the indexer and adjust the config
-			tr.Run(indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
-			indexerReady := test.NewStdoutWatcher(test.IndexerReadyMatch)
-			cmdIndexer := tr.Start(test.NewExecution(indexer, "daemon").WithWatcher(indexerReady))
-			select {
-			case <-indexerReady.Signal:
-			case <-ctx.Done():
-				t.Fatal("timed out waiting for indexer to start")
-			}
+			tr.Run(ctx, indexer, "init", "--store", "pebble", "--pubsub-topic", "/indexer/ingest/mainnet", "--no-bootstrap")
+			indexerReady := testcmd.NewStdoutWatcher(indexerReadyMatch)
+			cmdIndexer := tr.Start(ctx, testcmd.Args(indexer, "daemon"), indexerReady)
+			err = indexerReady.Wait(ctx)
+			req.NoError(err, "timed out waiting for indexer to start")
 
 			/*
 				We don't seem to need to give it explicit permission, but if we do, here it is
@@ -106,7 +105,7 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 				req.NoError(err)
 
 				// Allow provider advertisements, regardless of default policy.
-				tr.Run(indexer, "admin", "allow", "-i", "http://localhost:3002", "--peer", id.String())
+				tr.Run(ctx, indexer, "admin", "allow", "-i", "http://localhost:3002", "--peer", id.String())
 			*/
 
 			// setup the frisbii CLI args
@@ -126,20 +125,16 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 			args = append(args, testCase.frisbiiFlags...)
 
 			// start frisbii
-			frisbiiReady := test.NewStdoutWatcher("Announce() complete")
-			cmdFrisbii := tr.Start(test.NewExecution(frisbii, args...).WithWatcher(frisbiiReady))
-
-			select {
-			case <-frisbiiReady.Signal:
-			case <-ctx.Done():
-				t.Fatal("timed out waiting for frisbii to announce")
-			}
+			frisbiiReady := testcmd.NewStderrWatcher("Announce() complete")
+			cmdFrisbii := tr.Start(ctx, testcmd.Args(frisbii, args...), frisbiiReady)
+			err = frisbiiReady.Wait(ctx)
+			req.NoError(err, "timed out waiting for frisbii to announce")
 
 			// wait for the CARs to be indexed
 			req.Eventually(func() bool {
 				for root := range cars {
 					mh := root.Hash().B58String()
-					findOutput := tr.Run(ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
+					findOutput := tr.Run(ctx, ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
 					t.Logf("import output:\n%s\n", findOutput)
 
 					if bytes.Contains(findOutput, []byte("not found")) {
@@ -157,7 +152,7 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 			// fetch the data with lassie using the local indexer and make sure we
 			// got the CAR content we expected
 			for root, carPath := range cars {
-				tr.Run(lassie,
+				tr.Run(ctx, lassie,
 					"fetch",
 					"-vv",
 					"--ipni-endpoint", "http://localhost:3000",

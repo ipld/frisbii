@@ -229,6 +229,8 @@ github.com/ipfs/go-metrics-interface v0.0.1 h1:j+cpbjYvu4R8zbleSs36gvB7jR+wsL2fG
 github.com/ipfs/go-metrics-interface v0.0.1/go.mod h1:6s6euYU4zowdslK0GKHmqaIZ3j/b/tL7HTWtJ4VPgWY=
 github.com/ipfs/go-peertaskqueue v0.8.1 h1:YhxAs1+wxb5jk7RvS0LHdyiILpNmRIRnZVztekOF0pg=
 github.com/ipfs/go-peertaskqueue v0.8.1/go.mod h1:Oxxd3eaK279FxeydSPPVGHzbwVeHjatZ2GA8XD+KbPU=
+github.com/ipfs/go-test v0.0.1 h1:ndnYcnWEXzYQqkYX18fh/p1Pn8HHnj1OdA/m+Z10wFE=
+github.com/ipfs/go-test v0.0.1/go.mod h1:uDtFPEphmLrcPCitEY/xn1QnR7wm7iFBVrOIjkdxSZ0=
 github.com/ipfs/go-unixfs v0.4.5 h1:wj8JhxvV1G6CD7swACwSKYa+NgtdWC1RUit+gFnymDU=
 github.com/ipfs/go-unixfs v0.4.5/go.mod h1:BIznJNvt/gEx/ooRMI4Us9K8+qeGO7vx1ohnbk8gjFg=
 github.com/ipfs/go-unixfsnode v1.9.0 h1:ubEhQhr22sPAKO2DNsyVBW7YB/zA8Zkif25aBvz8rc8=
@@ -255,8 +257,6 @@ github.com/ipni/go-libipni v0.6.8 h1:bwyu7g+1jwgCptabQ6It2VtFucFJIsOckzQNBBObHoE
 github.com/ipni/go-libipni v0.6.8/go.mod h1:yXjq2JgqPMcubWpJie3OjyG0HNIoRdbmqxQMx+gF4TM=
 github.com/ipni/index-provider v0.15.3 h1:dq8pLyyf/vnyuPESnoc/ZOnIgFHZoBQiNwDOU8258WY=
 github.com/ipni/index-provider v0.15.3/go.mod h1:i5mhJPG1f2Ax+y+B48pamB9xNin5i2mvFLaQM5rCFMQ=
-github.com/ipni/storetheindex v0.8.32 h1:Zyt9Uqa840X8kjBSin/2Hh9uQ7mgChDGDP2v9z7fHwQ=
-github.com/ipni/storetheindex v0.8.32/go.mod h1:V/izSFH98NiECygKmFJ04qWND2ZgoT32yasn0tLSkic=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
 github.com/jackpal/go-nat-pmp v1.0.2/go.mod h1:QPH045xvCAeXUZOxsnwmrtiCoxIr9eob+4orBN1SBKc=
 github.com/jbenet/go-cienv v0.1.0/go.mod h1:TqNnHUmJgXau0nCzC7kXWeotg3J9W34CUv5Djy1+FlA=
