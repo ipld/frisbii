@@ -23,7 +23,7 @@ require (
 	github.com/libp2p/go-libp2p v0.36.4
 	github.com/multiformats/go-multiaddr v0.14.0
 	github.com/multiformats/go-multihash v0.2.3
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.5
 	go.uber.org/multierr v1.11.0
 	golang.org/x/term v0.26.0
