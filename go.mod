@@ -1,6 +1,7 @@
 module github.com/ipld/frisbii
 
 go 1.22.0
+toolchain go1.23.6
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
@@ -11,7 +12,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.0
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/go-test v0.0.4
-	github.com/ipfs/go-unixfsnode v1.9.2
+	github.com/ipfs/go-unixfsnode v1.10.0
 	github.com/ipld/go-car/v2 v2.14.2
 	github.com/ipld/go-codec-dagpb v1.7.0
 	github.com/ipld/go-fixtureplate v0.0.3
@@ -20,7 +21,7 @@ require (
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
 	github.com/ipni/go-libipni v0.6.15
 	github.com/ipni/index-provider v0.15.5
-	github.com/libp2p/go-libp2p v0.38.1
+	github.com/libp2p/go-libp2p v0.38.2
 	github.com/multiformats/go-multiaddr v0.14.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/stretchr/testify v1.10.0
@@ -62,7 +63,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
-	github.com/ipfs/boxo v0.24.0 // indirect
+	github.com/ipfs/boxo v0.27.4 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
 	github.com/ipfs/go-datastore v0.6.0 // indirect
 	github.com/ipfs/go-ipfs-blocksutil v0.0.1 // indirect
@@ -142,10 +143,10 @@ require (
 	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	go.opentelemetry.io/otel v1.28.0 // indirect
-	go.opentelemetry.io/otel/metric v1.28.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.28.0 // indirect
-	go.opentelemetry.io/otel/trace v1.28.0 // indirect
+	go.opentelemetry.io/otel v1.31.0 // indirect
+	go.opentelemetry.io/otel/metric v1.31.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.31.0 // indirect
+	go.opentelemetry.io/otel/trace v1.31.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
