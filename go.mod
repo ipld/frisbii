@@ -1,7 +1,6 @@
 module github.com/ipld/frisbii
 
-go 1.23
-toolchain go1.24.1
+go 1.23.0
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
