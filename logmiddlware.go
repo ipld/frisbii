@@ -127,6 +127,9 @@ func (w *LoggingResponseWriter) Log(
 	duration := time.Since(start)
 	w.wrote = true
 	remoteAddr := w.req.RemoteAddr
+	if clientIp := w.req.Header.Get("Fly-Client-IP"); clientIp != "" {
+		remoteAddr = clientIp
+	}
 	if ss := strings.Split(remoteAddr, ":"); len(ss) > 0 {
 		remoteAddr = ss[0]
 	}
