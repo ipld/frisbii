@@ -1,6 +1,6 @@
 module github.com/ipld/frisbii
 
-go 1.23.0
+go 1.23.8
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
@@ -9,7 +9,7 @@ require (
 	github.com/ipfs/go-cid v0.5.0
 	github.com/ipfs/go-graphsync v0.17.0
 	github.com/ipfs/go-ipld-format v0.6.0
-	github.com/ipfs/go-log/v2 v2.5.1
+	github.com/ipfs/go-log/v2 v2.8.0
 	github.com/ipfs/go-test v0.0.4
 	github.com/ipfs/go-unixfsnode v1.9.2
 	github.com/ipld/go-car/v2 v2.14.2
@@ -155,7 +155,7 @@ require (
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
