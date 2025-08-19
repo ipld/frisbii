@@ -38,14 +38,23 @@ func TestHttpIpfsHandler(t *testing.T) {
 		name               string
 		path               string
 		accept             string
+		method             string
 		expectedStatusCode int
 		expectedBody       string
+		checkHeaders       bool
 	}{
 		{
 			name:               "404",
 			path:               "/not here",
 			expectedStatusCode: http.StatusNotFound,
 			expectedBody:       "not found",
+		},
+		{
+			name:               "HEAD 404",
+			path:               "/not here",
+			method:             http.MethodHead,
+			expectedStatusCode: http.StatusNotFound,
+			expectedBody:       "", // HEAD should have no body
 		},
 		{
 			name:               "bad cid",
@@ -96,7 +105,11 @@ func TestHttpIpfsHandler(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			req := require.New(t)
-			request, err := http.NewRequest(http.MethodGet, testServer.URL+testCase.path, nil)
+			method := testCase.method
+			if method == "" {
+				method = http.MethodGet
+			}
+			request, err := http.NewRequest(method, testServer.URL+testCase.path, nil)
 			req.NoError(err)
 			if testCase.accept != "" {
 				request.Header.Set("Accept", testCase.accept)
@@ -107,6 +120,150 @@ func TestHttpIpfsHandler(t *testing.T) {
 			body, err := io.ReadAll(res.Body)
 			req.NoError(err)
 			req.Equal(testCase.expectedBody, string(body))
+
+			// For HEAD requests, verify headers are set but body is empty
+			if method == http.MethodHead && testCase.checkHeaders {
+				req.NotEmpty(res.Header.Get("Content-Type"))
+				req.NotEmpty(res.Header.Get("Etag"))
+				req.Empty(string(body))
+			}
+		})
+	}
+}
+
+func TestProbePathAndHeadRequests(t *testing.T) {
+	req := require.New(t)
+
+	// Set up a basic link system with some test data
+	lsys := cidlink.DefaultLinkSystem()
+	store := &memstore.Store{}
+	lsys.SetReadStorage(&trustlesstestutil.CorrectedMemStore{ParentStore: store})
+	lsys.SetWriteStorage(store)
+
+	// Create a simple test block
+	testData := []byte("test content")
+	testLink, err := lsys.Store(linking.LinkContext{}, cidlink.LinkPrototype{Prefix: cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1,
+	}}, basicnode.NewBytes(testData))
+	req.NoError(err)
+	testCid := testLink.(cidlink.Link).Cid
+
+	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	testCases := []struct {
+		name               string
+		method             string
+		path               string
+		accept             string
+		expectedStatusCode int
+		expectEmptyBody    bool
+		checkHeaders       bool
+	}{
+		// Probe path tests - bafkqaaa is the special probe CID
+		{
+			name:               "GET probe path with raw format",
+			method:             http.MethodGet,
+			path:               "/ipfs/bafkqaaa",
+			accept:             trustlesshttp.MimeTypeRaw,
+			expectedStatusCode: http.StatusOK,
+			expectEmptyBody:    true, // Identity CID has empty content
+			checkHeaders:       true,
+		},
+		{
+			name:               "HEAD probe path with raw format",
+			method:             http.MethodHead,
+			path:               "/ipfs/bafkqaaa",
+			accept:             trustlesshttp.MimeTypeRaw,
+			expectedStatusCode: http.StatusOK,
+			expectEmptyBody:    true,
+			checkHeaders:       true,
+		},
+		{
+			name:               "GET probe path with CAR format",
+			method:             http.MethodGet,
+			path:               "/ipfs/bafkqaaa",
+			accept:             trustlesshttp.MimeTypeCar,
+			expectedStatusCode: http.StatusOK,
+			expectEmptyBody:    false, // CAR will have header
+			checkHeaders:       true,
+		},
+		{
+			name:               "HEAD probe path with CAR format",
+			method:             http.MethodHead,
+			path:               "/ipfs/bafkqaaa",
+			accept:             trustlesshttp.MimeTypeCar,
+			expectedStatusCode: http.StatusOK,
+			expectEmptyBody:    true, // HEAD always has empty body
+			checkHeaders:       true,
+		},
+		// Regular CID HEAD tests
+		{
+			name:               "HEAD existing block with raw format",
+			method:             http.MethodHead,
+			path:               "/ipfs/" + testCid.String(),
+			accept:             trustlesshttp.MimeTypeRaw,
+			expectedStatusCode: http.StatusOK,
+			expectEmptyBody:    true,
+			checkHeaders:       true,
+		},
+		{
+			name:               "HEAD existing block with CAR format",
+			method:             http.MethodHead,
+			path:               "/ipfs/" + testCid.String(),
+			accept:             trustlesshttp.MimeTypeCar,
+			expectedStatusCode: http.StatusOK,
+			expectEmptyBody:    true,
+			checkHeaders:       true,
+		},
+		{
+			name:               "HEAD non-existing block",
+			method:             http.MethodHead,
+			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+			accept:             trustlesshttp.MimeTypeRaw,
+			expectedStatusCode: http.StatusInternalServerError,
+			expectEmptyBody:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(tc.method, testServer.URL+tc.path, nil)
+			req.NoError(err)
+			if tc.accept != "" {
+				request.Header.Set("Accept", tc.accept)
+			}
+
+			res, err := http.DefaultClient.Do(request)
+			req.NoError(err)
+			req.Equal(tc.expectedStatusCode, res.StatusCode)
+
+			body, err := io.ReadAll(res.Body)
+			req.NoError(err)
+
+			if tc.expectEmptyBody {
+				req.Empty(body, "Expected empty body but got: %s", string(body))
+			}
+
+			if tc.checkHeaders && tc.expectedStatusCode == http.StatusOK {
+				req.NotEmpty(res.Header.Get("Content-Type"), "Content-Type header should be set")
+				req.NotEmpty(res.Header.Get("Etag"), "Etag header should be set")
+				req.NotEmpty(res.Header.Get("X-Ipfs-Path"), "X-Ipfs-Path header should be set")
+				req.Equal("Accept, Accept-Encoding", res.Header.Get("Vary"), "Vary header should be set")
+			}
+
+			// Special check for probe CAR response
+			if tc.path == "/ipfs/bafkqaaa" && tc.accept == trustlesshttp.MimeTypeCar && tc.method == http.MethodGet {
+				// Parse the CAR to verify it's valid and has the probe CID as root
+				reader, err := car.NewBlockReader(strings.NewReader(string(body)))
+				req.NoError(err)
+				req.Equal(1, len(reader.Roots))
+				req.Equal("bafkqaaa", reader.Roots[0].String())
+			}
 		})
 	}
 }

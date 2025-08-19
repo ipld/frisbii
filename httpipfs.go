@@ -197,12 +197,12 @@ func NewHttpIpfsHandlerFunc(
 			}
 		}
 
-		// filter out everything but GET requests
+		// filter out everything but GET and HEAD requests
 		switch req.Method {
-		case http.MethodGet:
+		case http.MethodGet, http.MethodHead:
 			break
 		default:
-			res.Header().Add("Allow", http.MethodGet)
+			res.Header().Add("Allow", http.MethodGet+", "+http.MethodHead)
 			logError(http.StatusMethodNotAllowed, errors.New("method not allowed"))
 			return
 		}
@@ -280,7 +280,7 @@ func NewHttpIpfsHandlerFunc(
 			fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
 		}
 
-		var writer io.Writer = newIpfsResponseWriter(res, cfg.MaxResponseBytes, func() {
+		setHeaders := func() {
 			// called once we start writing blocks into the CAR (on the first Put())
 
 			close(bytesWrittenCh) // signal that we've started writing, so we can't log errors to the response now
@@ -300,7 +300,9 @@ func NewHttpIpfsHandlerFunc(
 			res.Header().Set("X-Content-Type-Options", "nosniff")
 			res.Header().Set("X-Ipfs-Path", "/"+datamodel.ParsePath(req.URL.Path).String())
 			res.Header().Set("Vary", "Accept, Accept-Encoding")
-		})
+		}
+
+		var writer io.Writer = newIpfsResponseWriter(res, cfg.MaxResponseBytes, setHeaders)
 
 		if lrw, ok := res.(*LoggingResponseWriter); ok {
 			writer = &countingWriter{writer, lrw}
@@ -310,15 +312,44 @@ func NewHttpIpfsHandlerFunc(
 			}
 		}
 
-		if accept.IsRaw() {
-			// send the raw block bytes as the response
+		// For HEAD requests, we only set headers, no body
+		isHeadRequest := req.Method == http.MethodHead
+
+		// Special handling for probe CID
+		if rootCid.Equals(ProbeCID) {
+			// Probe path handling - special identity CID with empty content
+			if isHeadRequest {
+				// For HEAD, just set headers without body
+				setHeaders()
+			} else if accept.IsRaw() {
+				// For raw format, return empty body (identity CID has no content)
+				// Write empty response for GET (identity CID has empty content)
+				_, _ = writer.Write([]byte{})
+			} else {
+				// For CAR format, write the pre-generated probe CAR bytes
+				if _, err := writer.Write(getProbeCarBytes()); err != nil {
+					logger.Debugw("probe CID CAR streaming error", "cid", rootCid, "err", err)
+					logError(http.StatusInternalServerError, err)
+				}
+			}
+		} else if isHeadRequest {
+			// HEAD request - verify content exists and set headers, but don't send body
+			// For both raw and CAR formats, we verify by checking if the root block exists
+			if _, err := lsys.LoadRaw(linking.LinkContext{Ctx: reqCtx}, cidlink.Link{Cid: rootCid}); err != nil {
+				logError(http.StatusInternalServerError, err)
+			} else {
+				// Content exists, set headers without body
+				setHeaders()
+			}
+		} else if accept.IsRaw() {
+			// GET request for raw block - send the actual block
 			if byts, err := lsys.LoadRaw(linking.LinkContext{Ctx: reqCtx}, cidlink.Link{Cid: rootCid}); err != nil {
 				logError(http.StatusInternalServerError, err)
 			} else if _, err := writer.Write(byts); err != nil {
 				logError(http.StatusInternalServerError, err)
 			}
 		} else {
-			// IsCar, so stream the CAR as the response
+			// GET request for CAR - stream the CAR
 			if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
 				logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
 				logError(http.StatusInternalServerError, err)
