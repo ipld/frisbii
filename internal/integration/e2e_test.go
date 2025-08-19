@@ -27,6 +27,14 @@ const indexerReadyMatch = "Indexer is ready"
 
 const rseed = 1234
 
+// Version constants for external dependencies
+// Using semver minor version pins to get bug fixes but avoid breaking changes
+const (
+	storeTheIndexVersion = "v0.8"  // github.com/ipni/storetheindex
+	ipniCliVersion       = "v0.4"  // github.com/ipni/ipni-cli/cmd/ipni
+	lassieVersion        = "v0.24" // github.com/filecoin-project/lassie/cmd/lassie
+)
+
 func TestIpniAndFetchIntegration(t *testing.T) {
 	switch os.Getenv("CI") {
 	case "":
@@ -75,13 +83,13 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 
 			// install the indexer to announce to
 			indexer := filepath.Join(tr.Dir, "storetheindex")
-			tr.Run(ctx, "go", "install", "github.com/ipni/storetheindex@latest")
+			tr.Run(ctx, "go", "install", "github.com/ipni/storetheindex@"+storeTheIndexVersion)
 			// install the ipni cli to inspect the indexer
 			ipni := filepath.Join(tr.Dir, "ipni")
-			tr.Run(ctx, "go", "install", "github.com/ipni/ipni-cli/cmd/ipni@latest")
+			tr.Run(ctx, "go", "install", "github.com/ipni/ipni-cli/cmd/ipni@"+ipniCliVersion)
 			// install lassie to perform a fetch of our content
 			lassie := filepath.Join(tr.Dir, "lassie")
-			tr.Run(ctx, "go", "install", "github.com/filecoin-project/lassie/cmd/lassie@latest")
+			tr.Run(ctx, "go", "install", "github.com/filecoin-project/lassie/cmd/lassie@"+lassieVersion)
 
 			err = os.Chdir(cwd)
 			req.NoError(err)
@@ -134,7 +142,7 @@ func TestIpniAndFetchIntegration(t *testing.T) {
 			req.Eventually(func() bool {
 				for root := range cars {
 					mh := root.Hash().B58String()
-					findOutput := tr.Run(ctx, ipni, "find", "--no-priv", "-i", "http://localhost:3000", "-mh", mh)
+					findOutput := tr.Run(ctx, ipni, "find", "-i", "http://localhost:3000", "-mh", mh)
 					t.Logf("import output:\n%s\n", findOutput)
 
 					if bytes.Contains(findOutput, []byte("not found")) {
