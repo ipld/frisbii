@@ -3,7 +3,9 @@ package frisbii
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"sync"
 
 	// codecs we care about
 
@@ -16,12 +18,45 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car/v2"
+	"github.com/ipld/go-car/v2/storage"
 	"github.com/ipld/go-car/v2/storage/deferred"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
 	trustlessutils "github.com/ipld/go-trustless-utils"
 )
+
+var (
+	// ProbeCID is the special identity CID used for probing the gateway
+	// bafkqaaa is an identity CID with empty content
+	ProbeCID = cid.MustParse("bafkqaaa")
+
+	// probeCarBytes is the pre-generated CAR response for the probe CID.
+	// Since this is always the same, we generate it once and reuse it.
+	probeCarBytes []byte
+	probeCarOnce  sync.Once
+)
+
+// getProbeCarBytes generates or returns the cached probe CAR response
+func getProbeCarBytes() []byte {
+	probeCarOnce.Do(func() {
+		var buf bytes.Buffer
+		// Create a simple CAR v1 with the probe CID as root
+		carWriter, err := storage.NewWritable(&buf, []cid.Cid{ProbeCID}, car.WriteAsCarV1(true))
+		if err != nil {
+			// This should never happen with valid inputs
+			panic(fmt.Sprintf("failed to create probe CAR writer: %v", err))
+		}
+		// Identity CIDs are not stored by default (no StoreIdentityCIDs option),
+		// so we just finalize to get a CAR with only the header.
+		// The spec says identity block MAY be skipped in the data section.
+		if err = carWriter.Finalize(); err != nil {
+			panic(fmt.Sprintf("failed to finalize probe CAR: %v", err))
+		}
+		probeCarBytes = buf.Bytes()
+	})
+	return probeCarBytes
+}
 
 // StreamCar streams a DAG in CARv1 format to the given writer, using the given
 // selector.
