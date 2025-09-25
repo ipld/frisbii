@@ -52,6 +52,7 @@ func NewFrisbiiServer(
 		lsys:        lsys,
 		httpOptions: httpOptions,
 		listener:    listener,
+		mux:         http.NewServeMux(),
 	}, nil
 }
 
@@ -60,7 +61,6 @@ func (fs *FrisbiiServer) Addr() net.Addr {
 }
 
 func (fs *FrisbiiServer) Serve() error {
-	fs.mux = http.NewServeMux()
 	fs.mux.Handle("/ipfs/", NewHttpIpfs(fs.ctx, fs.lsys, fs.httpOptions...))
 	fs.mux.Handle("/", http.NotFoundHandler())
 	server := &http.Server{
