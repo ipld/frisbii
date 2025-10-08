@@ -196,8 +196,8 @@ github.com/ipfs/go-peertaskqueue v0.8.2 h1:PaHFRaVFdxQk1Qo3OKiHPYjmmusQy7gKQUaL8
 github.com/ipfs/go-peertaskqueue v0.8.2/go.mod h1:L6QPvou0346c2qPJNiJa6BvOibxDfaiPlqHInmzg0FA=
 github.com/ipfs/go-test v0.2.3 h1:Z/jXNAReQFtCYyn7bsv/ZqUwS6E7iIcSpJ2CuzCvnrc=
 github.com/ipfs/go-test v0.2.3/go.mod h1:QW8vSKkwYvWFwIZQLGQXdkt9Ud76eQXRQ9Ao2H+cA1o=
-github.com/ipfs/go-unixfsnode v1.10.1 h1:hGKhzuH6NSzZ4y621wGuDspkjXRNG3B+HqhlyTjSwSM=
-github.com/ipfs/go-unixfsnode v1.10.1/go.mod h1:eguv/otvacjmfSbYvmamc9ssNAzLvRk0+YN30EYeOOY=
+github.com/ipfs/go-unixfsnode v1.10.2 h1:TREegX1J4X+k1w4AhoDuxxFvVcS9SegMRvrmxF6Tca8=
+github.com/ipfs/go-unixfsnode v1.10.2/go.mod h1:ImDPTSiKZ+2h4UVdkSDITJHk87bUAp7kX/lgifjRicg=
 github.com/ipld/go-car/v2 v2.15.0 h1:RxtZcGXFx72zFESl+UUsCNQV2YMcy3gEMYx9M3uio24=
 github.com/ipld/go-car/v2 v2.15.0/go.mod h1:ovlq/n3xlVJDmoiN3Kd/Z7kIzQbdTIFSwltfOP+qIgk=
 github.com/ipld/go-codec-dagpb v1.7.0 h1:hpuvQjCSVSLnTnHXn+QAMR0mLmb1gA6wl10LExo2Ts0=
@@ -661,8 +661,8 @@ google.golang.org/grpc v1.14.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmE
 google.golang.org/grpc v1.16.0/go.mod h1:0JHn/cJsOMiMfNA9+DeHDlAU7KAAB5GDlYFpa9MZMio=
 google.golang.org/grpc v1.17.0/go.mod h1:6QZJwpn2B+Zp71q/5VxRsJ6NXXVCE5NRUHRo+f3cWCs=
 google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
-google.golang.org/protobuf v1.36.7 h1:IgrO7UwFQGJdRNXH/sQux4R1Dj1WAKcLElzeeRaXV2A=
-google.golang.org/protobuf v1.36.7/go.mod h1:jduwjTPXsFjZGTmRluh+L6NjiWu7pchiJ2/5YcXBHnY=
+google.golang.org/protobuf v1.36.9 h1:w2gp2mA27hUeUzj9Ex9FBjsBm40zfaDtEWow293U7Iw=
+google.golang.org/protobuf v1.36.9/go.mod h1:fuxRtAxBytpl4zzqUh6/eyUujkJdNiuEkXntxiD/uRU=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
