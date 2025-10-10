@@ -268,6 +268,148 @@ func TestProbePathAndHeadRequests(t *testing.T) {
 	}
 }
 
+func TestHeadRequestWithFormatParameter(t *testing.T) {
+	req := require.New(t)
+
+	// Set up a basic link system with test data
+	lsys := cidlink.DefaultLinkSystem()
+	store := &memstore.Store{}
+	lsys.SetReadStorage(&trustlesstestutil.CorrectedMemStore{ParentStore: store})
+	lsys.SetWriteStorage(store)
+
+	// Create a simple test block
+	testData := []byte("test content for format parameter")
+	testLink, err := lsys.Store(linking.LinkContext{}, cidlink.LinkPrototype{Prefix: cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1,
+	}}, basicnode.NewBytes(testData))
+	req.NoError(err)
+	testCid := testLink.(cidlink.Link).Cid
+
+	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	testCases := []struct {
+		name                string
+		method              string
+		path                string
+		acceptHeader        string
+		expectedStatusCode  int
+		expectedContentType string
+	}{
+		{
+			name:                "HEAD with format=raw query parameter (no Accept header)",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String() + "?format=raw",
+			acceptHeader:        "",
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "HEAD with format=car query parameter (no Accept header)",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String() + "?format=car",
+			acceptHeader:        "",
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.DefaultContentType().String(),
+		},
+		{
+			name:                "HEAD with format=raw and Accept: raw (Accept wins per spec)",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String() + "?format=raw",
+			acceptHeader:        trustlesshttp.MimeTypeRaw,
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "HEAD with format=car and Accept: raw (Accept wins per spec)",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String() + "?format=car",
+			acceptHeader:        trustlesshttp.MimeTypeRaw,
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "HEAD with format=raw and Accept: */* (wildcard, format wins)",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String() + "?format=raw",
+			acceptHeader:        "*/*",
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "HEAD with format=raw and Accept: application/* (wildcard, format wins)",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String() + "?format=raw",
+			acceptHeader:        "application/*",
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "HEAD with no format parameter and Accept: raw",
+			method:              http.MethodHead,
+			path:                "/ipfs/" + testCid.String(),
+			acceptHeader:        trustlesshttp.MimeTypeRaw,
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "GET with format=raw query parameter",
+			method:              http.MethodGet,
+			path:                "/ipfs/" + testCid.String() + "?format=raw",
+			acceptHeader:        "",
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.MimeTypeRaw,
+		},
+		{
+			name:                "GET with format=car query parameter",
+			method:              http.MethodGet,
+			path:                "/ipfs/" + testCid.String() + "?format=car",
+			acceptHeader:        "",
+			expectedStatusCode:  http.StatusOK,
+			expectedContentType: trustlesshttp.DefaultContentType().String(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(tc.method, testServer.URL+tc.path, nil)
+			req.NoError(err)
+			if tc.acceptHeader != "" {
+				request.Header.Set("Accept", tc.acceptHeader)
+			}
+
+			res, err := http.DefaultClient.Do(request)
+			req.NoError(err)
+			req.Equal(tc.expectedStatusCode, res.StatusCode)
+
+			body, err := io.ReadAll(res.Body)
+			req.NoError(err)
+
+			// Verify Content-Type header matches expected
+			actualContentType := res.Header.Get("Content-Type")
+			t.Logf("%s %s => Content-Type: %s (expected: %s)",
+				tc.method, tc.path, actualContentType, tc.expectedContentType)
+			req.Equal(tc.expectedContentType, actualContentType,
+				"Content-Type mismatch for %s request to %s: expected %q, got %q",
+				tc.method, tc.path, tc.expectedContentType, actualContentType)
+
+			// HEAD requests should always have empty body
+			if tc.method == http.MethodHead {
+				req.Empty(body, "HEAD request should have empty body")
+			}
+
+			// GET requests with raw format should have the actual block data
+			if tc.method == http.MethodGet && strings.Contains(tc.path, "format=raw") {
+				req.Equal(testData, body, "GET raw request should return the block data")
+			}
+		})
+	}
+}
+
 func TestHttpIpfsIntegration_Unixfs20mVariety(t *testing.T) {
 	req := require.New(t)
 
