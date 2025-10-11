@@ -13,6 +13,7 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipld/go-ipld-prime/datamodel"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
@@ -21,6 +22,14 @@ import (
 )
 
 var _ http.Handler = (*HttpIpfs)(nil)
+
+var (
+	ErrMethodNotAllowed       = errors.New("method not allowed")
+	ErrNotFound               = errors.New("not found")
+	ErrInvalidCID             = errors.New("failed to parse CID path parameter")
+	ErrPathNotSupportedForRaw = errors.New("path not supported for raw requests")
+	ErrContentNotInCache      = errors.New("content not in cache")
+)
 
 type ErrorLogger interface {
 	LogError(status int, err error)
@@ -149,6 +158,24 @@ func (hi *HttpIpfs) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	hi.handlerFunc(res, req)
 }
 
+// isNotFoundError checks if an error represents content not being found.
+// This includes format.ErrNotFound and errors that implement a NotFound() method.
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Check for format.ErrNotFound from go-ipld-format
+	var notFound format.ErrNotFound
+	if errors.As(err, &notFound) {
+		return true
+	}
+	// Check for NotFound() interface method (used by some storage implementations)
+	if nf, ok := err.(interface{ NotFound() bool }); ok && nf.NotFound() {
+		return true
+	}
+	return false
+}
+
 func NewHttpIpfsHandlerFunc(
 	ctx context.Context,
 	lsys linking.LinkSystem,
@@ -203,7 +230,7 @@ func NewHttpIpfsHandlerFunc(
 			break
 		default:
 			res.Header().Add("Allow", http.MethodGet+", "+http.MethodHead)
-			logError(http.StatusMethodNotAllowed, errors.New("method not allowed"))
+			logError(http.StatusMethodNotAllowed, ErrMethodNotAllowed)
 			return
 		}
 
@@ -213,7 +240,7 @@ func NewHttpIpfsHandlerFunc(
 		// check if CID path param is missing
 		if path.Len() == 0 {
 			// not a valid path to hit
-			logError(http.StatusNotFound, errors.New("not found"))
+			logError(http.StatusNotFound, ErrNotFound)
 			return
 		}
 
@@ -238,9 +265,14 @@ func NewHttpIpfsHandlerFunc(
 		var cidSeg datamodel.PathSegment
 		cidSeg, path = path.Shift()
 		if rootCid, err = cid.Parse(cidSeg.String()); err != nil {
-			logError(http.StatusBadRequest, errors.New("failed to parse CID path parameter"))
+			logError(http.StatusBadRequest, ErrInvalidCID)
 			return
 		}
+
+		// Check for Cache-Control: only-if-cached header
+		// If present and content is not found, we return 412 instead of 404
+		cacheControl := req.Header.Get("Cache-Control")
+		onlyIfCached := strings.Contains(strings.ToLower(cacheControl), "only-if-cached")
 
 		var (
 			dagScope  trustlessutils.DagScope   = trustlessutils.DagScopeAll
@@ -249,7 +281,7 @@ func NewHttpIpfsHandlerFunc(
 
 		if accept.IsRaw() {
 			if path.Len() > 0 {
-				logError(http.StatusBadRequest, errors.New("path not supported for raw requests"))
+				logError(http.StatusBadRequest, ErrPathNotSupportedForRaw)
 				return
 			}
 		} else {
@@ -277,7 +309,11 @@ func NewHttpIpfsHandlerFunc(
 		}
 
 		if fileName == "" {
-			fileName = fmt.Sprintf("%s%s", rootCid.String(), trustlesshttp.FilenameExtCar)
+			ext := trustlesshttp.FilenameExtCar
+			if accept.IsRaw() {
+				ext = trustlesshttp.FilenameExtRaw
+			}
+			fileName = fmt.Sprintf("%s%s", rootCid.String(), ext)
 		}
 
 		setHeaders := func() {
@@ -288,7 +324,24 @@ func NewHttpIpfsHandlerFunc(
 			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 			res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
 			res.Header().Set("Content-Type", accept.WithQuality(1).String())
-			etag := request.Etag()
+
+			// Set Content-Location if format was negotiated via Accept header
+			// (helps HTTP caches store formats separately)
+			requestPath := req.URL.Path
+			if req.URL.RawQuery != "" {
+				requestPath += "?" + req.URL.RawQuery
+			}
+			if contentLoc := accept.ContentLocation(requestPath); contentLoc != "" {
+				res.Header().Set("Content-Location", contentLoc)
+			}
+
+			// Set X-Ipfs-Roots for simple CID requests
+			// (omitted for path requests in streaming gateways)
+			if roots := request.IpfsRoots(); roots != "" {
+				res.Header().Set("X-Ipfs-Roots", roots)
+			}
+
+			etag := request.Etag("dfs") // Frisbii only supports DFS ordering
 			switch res.(type) {
 			case *gziphandler.GzipResponseWriter, gziphandler.GzipResponseWriterWithCloseNotify:
 				// there are conditions where we may have a GzipResponseWriter but the
@@ -336,7 +389,15 @@ func NewHttpIpfsHandlerFunc(
 			// HEAD request - verify content exists and set headers, but don't send body
 			// For both raw and CAR formats, we verify by checking if the root block exists
 			if _, err := lsys.LoadRaw(linking.LinkContext{Ctx: reqCtx}, cidlink.Link{Cid: rootCid}); err != nil {
-				logError(http.StatusInternalServerError, err)
+				if isNotFoundError(err) {
+					if onlyIfCached {
+						logError(http.StatusPreconditionFailed, ErrContentNotInCache)
+					} else {
+						logError(http.StatusNotFound, err)
+					}
+				} else {
+					logError(http.StatusInternalServerError, err)
+				}
 			} else {
 				// Content exists, set headers without body
 				setHeaders()
@@ -344,7 +405,15 @@ func NewHttpIpfsHandlerFunc(
 		} else if accept.IsRaw() {
 			// GET request for raw block - send the actual block
 			if byts, err := lsys.LoadRaw(linking.LinkContext{Ctx: reqCtx}, cidlink.Link{Cid: rootCid}); err != nil {
-				logError(http.StatusInternalServerError, err)
+				if isNotFoundError(err) {
+					if onlyIfCached {
+						logError(http.StatusPreconditionFailed, ErrContentNotInCache)
+					} else {
+						logError(http.StatusNotFound, err)
+					}
+				} else {
+					logError(http.StatusInternalServerError, err)
+				}
 			} else if _, err := writer.Write(byts); err != nil {
 				logError(http.StatusInternalServerError, err)
 			}
@@ -352,7 +421,15 @@ func NewHttpIpfsHandlerFunc(
 			// GET request for CAR - stream the CAR
 			if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
 				logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
-				logError(http.StatusInternalServerError, err)
+				if isNotFoundError(err) {
+					if onlyIfCached {
+						logError(http.StatusPreconditionFailed, ErrContentNotInCache)
+					} else {
+						logError(http.StatusNotFound, err)
+					}
+				} else {
+					logError(http.StatusInternalServerError, err)
+				}
 			}
 		}
 	}
