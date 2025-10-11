@@ -147,9 +147,9 @@ func TestFrisbiiServer(t *testing.T) {
 					rdr, err = gzip.NewReader(response.Body)
 					req.NoError(err)
 				} // else should be handled by the go client
-				req.Regexp(`^"`+rootEnt.Root.String()+`\.car\.\w{2,13}\.gz"$`, response.Header.Get("Etag"))
+				req.Regexp(`^W/"`+rootEnt.Root.String()+`\.car\.\w{2,13}\.gz"$`, response.Header.Get("Etag"))
 			} else {
-				req.Regexp(`\.car\.\w{12,13}"$`, response.Header.Get("Etag"))
+				req.Regexp(`^W/".*\.car\.\w{12,13}"$`, response.Header.Get("Etag"))
 			}
 			cr, err := car.NewBlockReader(rdr)
 			req.NoError(err)
@@ -183,4 +183,167 @@ func toCids(e unixfstestutil.DirEntry) []cid.Cid {
 	}
 	r(e)
 	return cids
+}
+
+func TestCacheControlOnlyIfCached(t *testing.T) {
+	testCases := []struct {
+		name            string
+		cidExists       bool
+		expectedStatus  int
+		cacheControlHdr string
+	}{
+		{
+			name:            "only-if-cached with existing content",
+			cidExists:       true,
+			expectedStatus:  http.StatusOK,
+			cacheControlHdr: "only-if-cached",
+		},
+		{
+			name:            "only-if-cached with missing content",
+			cidExists:       false,
+			expectedStatus:  http.StatusPreconditionFailed,
+			cacheControlHdr: "only-if-cached",
+		},
+		{
+			name:            "no cache-control with existing content",
+			cidExists:       true,
+			expectedStatus:  http.StatusOK,
+			cacheControlHdr: "",
+		},
+		{
+			name:            "no cache-control with missing content",
+			cidExists:       false,
+			expectedStatus:  http.StatusNotFound,
+			cacheControlHdr: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := require.New(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			store := &testutil.CorrectedMemStore{ParentStore: &memstore.Store{Bag: make(map[string][]byte)}}
+			lsys := cidlink.DefaultLinkSystem()
+			lsys.SetReadStorage(store)
+			lsys.SetWriteStorage(store)
+			lsys.TrustedStorage = true
+
+			rndSeed := time.Now().UTC().UnixNano()
+			var rndReader io.Reader = rand.New(rand.NewSource(rndSeed))
+
+			entity, err := unixfsgen.Parse("file:1KiB{zero}")
+			req.NoError(err)
+			rootEnt, err := entity.Generate(lsys, rndReader)
+			req.NoError(err)
+
+			// Create a second link system that may or may not have the content
+			testStore := &testutil.CorrectedMemStore{ParentStore: &memstore.Store{Bag: make(map[string][]byte)}}
+			testLsys := cidlink.DefaultLinkSystem()
+			testLsys.SetReadStorage(testStore)
+			testLsys.SetWriteStorage(testStore)
+			testLsys.TrustedStorage = true
+
+			if tc.cidExists {
+				// Copy content to test store
+				testStore.ParentStore.(*memstore.Store).Bag = store.ParentStore.(*memstore.Store).Bag
+			}
+
+			server, err := frisbii.NewFrisbiiServer(ctx, testLsys, "localhost:0")
+			req.NoError(err)
+			go func() {
+				req.NoError(server.Serve())
+			}()
+			addr := server.Addr()
+
+			request, err := http.NewRequest("GET", "http://"+addr.String()+"/ipfs/"+rootEnt.Root.String(), nil)
+			req.NoError(err)
+			request.Header.Set("Accept", "application/vnd.ipld.car")
+			if tc.cacheControlHdr != "" {
+				request.Header.Set("Cache-Control", tc.cacheControlHdr)
+			}
+			request = request.WithContext(ctx)
+
+			client := &http.Client{}
+			response, err := client.Do(request)
+			req.NoError(err)
+			defer response.Body.Close()
+
+			req.Equal(tc.expectedStatus, response.StatusCode, "Expected status %d, got %d", tc.expectedStatus, response.StatusCode)
+		})
+	}
+}
+
+func TestContentDisposition(t *testing.T) {
+	testCases := []struct {
+		name               string
+		acceptHeader       string
+		expectedExtension  string
+		expectedMimePrefix string
+	}{
+		{
+			name:               "CAR format",
+			acceptHeader:       "application/vnd.ipld.car",
+			expectedExtension:  ".car",
+			expectedMimePrefix: "application/vnd.ipld.car",
+		},
+		{
+			name:               "raw format",
+			acceptHeader:       "application/vnd.ipld.raw",
+			expectedExtension:  ".bin",
+			expectedMimePrefix: "application/vnd.ipld.raw",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := require.New(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			store := &testutil.CorrectedMemStore{ParentStore: &memstore.Store{Bag: make(map[string][]byte)}}
+			lsys := cidlink.DefaultLinkSystem()
+			lsys.SetReadStorage(store)
+			lsys.SetWriteStorage(store)
+			lsys.TrustedStorage = true
+
+			rndSeed := time.Now().UTC().UnixNano()
+			var rndReader io.Reader = rand.New(rand.NewSource(rndSeed))
+
+			entity, err := unixfsgen.Parse("file:1KiB{zero}")
+			req.NoError(err)
+			rootEnt, err := entity.Generate(lsys, rndReader)
+			req.NoError(err)
+
+			server, err := frisbii.NewFrisbiiServer(ctx, lsys, "localhost:0")
+			req.NoError(err)
+			go func() {
+				req.NoError(server.Serve())
+			}()
+			addr := server.Addr()
+
+			request, err := http.NewRequest("GET", "http://"+addr.String()+"/ipfs/"+rootEnt.Root.String(), nil)
+			req.NoError(err)
+			request.Header.Set("Accept", tc.acceptHeader)
+			request = request.WithContext(ctx)
+
+			client := &http.Client{}
+			response, err := client.Do(request)
+			req.NoError(err)
+			defer response.Body.Close()
+
+			req.Equal(http.StatusOK, response.StatusCode)
+
+			// Check Content-Disposition header
+			contentDisposition := response.Header.Get("Content-Disposition")
+			req.Contains(contentDisposition, "attachment")
+			req.Contains(contentDisposition, "filename=")
+			req.Contains(contentDisposition, rootEnt.Root.String()+tc.expectedExtension)
+
+			// Check Content-Type header
+			contentType := response.Header.Get("Content-Type")
+			req.Contains(contentType, tc.expectedMimePrefix)
+		})
+	}
 }

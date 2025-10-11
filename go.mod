@@ -14,11 +14,11 @@ require (
 	github.com/ipfs/go-log/v2 v2.8.1
 	github.com/ipfs/go-test v0.2.3
 	github.com/ipfs/go-unixfsnode v1.10.2
-	github.com/ipld/go-car/v2 v2.15.0
+	github.com/ipld/go-car/v2 v2.16.0
 	github.com/ipld/go-codec-dagpb v1.7.0
 	github.com/ipld/go-fixtureplate v0.0.3
 	github.com/ipld/go-ipld-prime v0.21.0
-	github.com/ipld/go-trustless-utils v0.4.1
+	github.com/ipld/go-trustless-utils v0.6.0
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
 	github.com/ipni/go-libipni v0.7.0
 	github.com/ipni/index-provider v0.15.5
@@ -93,7 +93,7 @@ require (
 	github.com/multiformats/go-multibase v0.2.0 // indirect
 	github.com/multiformats/go-multicodec v0.9.2 // indirect
 	github.com/multiformats/go-multistream v0.6.1 // indirect
-	github.com/multiformats/go-varint v0.0.7 // indirect
+	github.com/multiformats/go-varint v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect

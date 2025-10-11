@@ -92,7 +92,7 @@ func TestHttpIpfsHandler(t *testing.T) {
 			name:               "block not found",
 			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 			accept:             trustlesshttp.DefaultContentType().String(),
-			expectedStatusCode: http.StatusInternalServerError,
+			expectedStatusCode: http.StatusNotFound,
 			expectedBody:       "failed to load root node: failed to load root CID: ipld: could not find bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 		},
 		{
@@ -225,7 +225,7 @@ func TestProbePathAndHeadRequests(t *testing.T) {
 			method:             http.MethodHead,
 			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 			accept:             trustlesshttp.MimeTypeRaw,
-			expectedStatusCode: http.StatusInternalServerError,
+			expectedStatusCode: http.StatusNotFound,
 			expectEmptyBody:    true,
 		},
 	}
@@ -495,4 +495,194 @@ func mkDupy(lsys linking.LinkSystem) ([]cid.Cid, []cid.Cid) {
 	dupyLinksDeduped := []cid.Cid{l.(cidlink.Link).Cid, dupy}
 
 	return dupyLinks, dupyLinksDeduped
+}
+
+func TestContentLocationHeader(t *testing.T) {
+	req := require.New(t)
+
+	// Set up a basic link system with test data
+	lsys := cidlink.DefaultLinkSystem()
+	store := &memstore.Store{}
+	lsys.SetReadStorage(&trustlesstestutil.CorrectedMemStore{ParentStore: store})
+	lsys.SetWriteStorage(store)
+
+	// Create a simple test block
+	testData := []byte("test content for Content-Location")
+	testLink, err := lsys.Store(linking.LinkContext{}, cidlink.LinkPrototype{Prefix: cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1,
+	}}, basicnode.NewBytes(testData))
+	req.NoError(err)
+	testCid := testLink.(cidlink.Link).Cid
+
+	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	testCases := []struct {
+		name                    string
+		path                    string
+		acceptHeader            string
+		expectedContentLocation string // empty string means header should not be present
+	}{
+		{
+			name:                    "CAR request without format param - should get Content-Location",
+			path:                    "/ipfs/" + testCid.String(),
+			acceptHeader:            trustlesshttp.MimeTypeCar,
+			expectedContentLocation: "/ipfs/" + testCid.String() + "?format=car",
+		},
+		{
+			name:                    "raw request without format param - should get Content-Location",
+			path:                    "/ipfs/" + testCid.String(),
+			acceptHeader:            trustlesshttp.MimeTypeRaw,
+			expectedContentLocation: "/ipfs/" + testCid.String() + "?format=raw",
+		},
+		{
+			name:                    "CAR request with format param - should NOT get Content-Location",
+			path:                    "/ipfs/" + testCid.String() + "?format=car",
+			acceptHeader:            trustlesshttp.MimeTypeCar,
+			expectedContentLocation: "",
+		},
+		{
+			name:                    "raw request with format param - should NOT get Content-Location",
+			path:                    "/ipfs/" + testCid.String() + "?format=raw",
+			acceptHeader:            trustlesshttp.MimeTypeRaw,
+			expectedContentLocation: "",
+		},
+		{
+			name:                    "CAR request with existing query params - should append format",
+			path:                    "/ipfs/" + testCid.String() + "?dag-scope=block",
+			acceptHeader:            trustlesshttp.MimeTypeCar,
+			expectedContentLocation: "/ipfs/" + testCid.String() + "?dag-scope=block&format=car",
+		},
+		{
+			name:                    "raw request with existing query params - should append format",
+			path:                    "/ipfs/" + testCid.String() + "?dag-scope=block",
+			acceptHeader:            trustlesshttp.MimeTypeRaw,
+			expectedContentLocation: "/ipfs/" + testCid.String() + "?dag-scope=block&format=raw",
+		},
+		{
+			name:                    "CAR with wildcard accept",
+			path:                    "/ipfs/" + testCid.String(),
+			acceptHeader:            "*/*",
+			expectedContentLocation: "/ipfs/" + testCid.String() + "?format=car",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, testServer.URL+tc.path, nil)
+			req.NoError(err)
+			if tc.acceptHeader != "" {
+				request.Header.Set("Accept", tc.acceptHeader)
+			}
+
+			res, err := http.DefaultClient.Do(request)
+			req.NoError(err)
+			req.Equal(http.StatusOK, res.StatusCode)
+
+			actualContentLocation := res.Header.Get("Content-Location")
+			if tc.expectedContentLocation == "" {
+				req.Empty(actualContentLocation, "Content-Location header should not be set")
+			} else {
+				req.Equal(tc.expectedContentLocation, actualContentLocation,
+					"Content-Location mismatch for %s", tc.name)
+			}
+		})
+	}
+}
+
+func TestXIpfsRootsHeader(t *testing.T) {
+	req := require.New(t)
+
+	// Set up a link system with a simple UnixFS file tree for path testing
+	lsys := cidlink.DefaultLinkSystem()
+	store := &memstore.Store{}
+	lsys.SetReadStorage(&trustlesstestutil.CorrectedMemStore{ParentStore: store})
+	lsys.SetWriteStorage(store)
+	unixfsnode.AddUnixFSReificationToLinkSystem(&lsys)
+
+	// Create a simple test block
+	leafData := []byte("leaf content")
+	leafLink, err := lsys.Store(linking.LinkContext{}, cidlink.LinkPrototype{Prefix: cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1,
+	}}, basicnode.NewBytes(leafData))
+	req.NoError(err)
+	leafCid := leafLink.(cidlink.Link).Cid
+
+	// Create a UnixFS directory with the leaf file
+	dirNode, err := qp.BuildMap(dagpb.Type.PBNode, 1, func(ma datamodel.MapAssembler) {
+		qp.MapEntry(ma, "Links", qp.List(1, func(la datamodel.ListAssembler) {
+			qp.ListEntry(la, qp.Map(2, func(ma datamodel.MapAssembler) {
+				qp.MapEntry(ma, "Name", qp.String("file.txt"))
+				qp.MapEntry(ma, "Hash", qp.Link(cidlink.Link{Cid: leafCid}))
+			}))
+		}))
+	})
+	req.NoError(err)
+	dirLink, err := lsys.Store(linking.LinkContext{}, cidlink.LinkPrototype{
+		Prefix: cid.Prefix{
+			Version:  1,
+			Codec:    cid.DagProtobuf,
+			MhType:   multihash.SHA2_256,
+			MhLength: 32,
+		},
+	}, dirNode)
+	req.NoError(err)
+	dirCid := dirLink.(cidlink.Link).Cid
+
+	handler := frisbii.NewHttpIpfs(context.Background(), lsys)
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	testCases := []struct {
+		name              string
+		path              string
+		expectedRoots     string // empty string means header should not be present
+		shouldHaveContent bool   // whether we expect the content to exist
+	}{
+		{
+			name:              "Simple CID request - should get X-Ipfs-Roots with root CID",
+			path:              "/ipfs/" + leafCid.String(),
+			expectedRoots:     leafCid.String(),
+			shouldHaveContent: true,
+		},
+		{
+			name:              "Request with path - should NOT get X-Ipfs-Roots (streaming gateway)",
+			path:              "/ipfs/" + dirCid.String() + "/file.txt",
+			expectedRoots:     "",
+			shouldHaveContent: true,
+		},
+		{
+			name:              "Simple CID with query params - should still get X-Ipfs-Roots",
+			path:              "/ipfs/" + leafCid.String() + "?dag-scope=block",
+			expectedRoots:     leafCid.String(),
+			shouldHaveContent: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, testServer.URL+tc.path, nil)
+			req.NoError(err)
+			request.Header.Set("Accept", trustlesshttp.MimeTypeCar)
+
+			res, err := http.DefaultClient.Do(request)
+			req.NoError(err)
+			req.Equal(http.StatusOK, res.StatusCode)
+
+			actualRoots := res.Header.Get("X-Ipfs-Roots")
+			if tc.expectedRoots == "" {
+				req.Empty(actualRoots, "X-Ipfs-Roots header should not be set for path requests (streaming gateway)")
+			} else {
+				req.Equal(tc.expectedRoots, actualRoots,
+					"X-Ipfs-Roots mismatch for %s", tc.name)
+			}
+		})
+	}
 }
