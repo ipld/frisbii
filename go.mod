@@ -2,6 +2,12 @@ module github.com/ipld/frisbii
 
 go 1.24.6
 
+// TODO: Remove this replace directive once lotus upgrades to support boxo v0.34.0+
+// boxo v0.34.0+ removed the HashOnRead() method that lotus v1.34.1 still requires.
+// We pin to v0.33.1 to maintain compatibility with downstream consumers (e.g., Curio)
+// that depend on lotus.
+replace github.com/ipfs/boxo v0.35.0 => github.com/ipfs/boxo v0.33.1
+
 require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/dustin/go-humanize v1.0.1
