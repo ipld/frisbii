@@ -2,7 +2,7 @@
 
 **An experimental minimal IPLD data provider for the IPFS network**
 
-**Frisbii** is currently a simple HTTP server that conforms minimally to the [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification, serving IPLD data in CAR format to HTTP clients.
+**Frisbii** is currently a simple HTTP server that conforms minimally to the [IPFS Trustless Gateway](https://specs.ipfs.tech/http-gateways/trustless-gateway/) specification, serving IPLD data to HTTP clients. Only [`application/vnd.ipld.car`](https://www.iana.org/assignments/media-types/application/vnd.ipld.car) and [`application/vnd.ipld.raw`](https://www.iana.org/assignments/media-types/application/vnd.ipld.raw) content types are supported. IPNS resolution is not supported.
 
 Content routing, when enabled, is delegated to the [Interpletary Network Indexer (IPNI)](https://cid.contact/) service. On startup, Frisbii can announce its content to IPNI, allowing it to be discovered by clients that query the indexer for that content.
 
