@@ -1,0 +1,95 @@
+name: Gateway Conformance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download the gateway-conformance fixtures
+      - name: Download gateway-conformance fixtures
+        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@v0.8
+        with:
+          output: fixtures
+          merged: true
+
+      # 2. Build frisbii
+      - name: Checkout frisbii
+        uses: actions/checkout@v5
+        with:
+          path: frisbii
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: frisbii/go.mod
+          cache-dependency-path: frisbii/go.sum
+
+      - name: Build frisbii
+        run: go build -o frisbii ./cmd/frisbii
+        working-directory: frisbii
+
+      # 3. Start frisbii with fixtures
+      - name: Start frisbii
+        run: |
+          ./frisbii --listen=127.0.0.1:3747 --car=../fixtures/fixtures.car > frisbii.log 2>&1 &
+          FRISBII_PID=$!
+
+          # Wait for frisbii to be ready (any HTTP response including 404 is OK)
+          for i in {1..30}; do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3747 2>/dev/null | grep -q '^[0-9]'; then
+              echo "frisbii is ready (PID: $FRISBII_PID)"
+              exit 0
+            fi
+            echo "Waiting for frisbii to start (attempt $i/30)..."
+            sleep 1
+          done
+
+          echo "frisbii failed to start within 30 seconds"
+          echo "==> frisbii log:"
+          cat frisbii.log
+          exit 1
+        working-directory: frisbii
+
+      # 4. Run the gateway-conformance tests
+      - name: Run gateway-conformance tests
+        uses: ipfs/gateway-conformance/.github/actions/test@v0.8
+        with:
+          gateway-url: http://127.0.0.1:3747
+          specs: trustless-gateway,-trustless-ipns
+          json: output.json
+          xml: output.xml
+          html: output.html
+          markdown: output.md
+
+      # 5. Upload the results
+      - name: Upload MD summary
+        if: failure() || success()
+        run: cat output.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload HTML report
+        if: failure() || success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-conformance.html
+          path: output.html
+
+      - name: Upload JSON report
+        if: failure() || success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-conformance.json
+          path: output.json
