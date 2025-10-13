@@ -321,6 +321,9 @@ func NewHttpIpfsHandlerFunc(
 
 			close(bytesWrittenCh) // signal that we've started writing, so we can't log errors to the response now
 
+			if accept.IsCar() {
+				res.Header().Set("Accept-Ranges", "none")
+			}
 			res.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 			res.Header().Set("Cache-Control", trustlesshttp.ResponseCacheControlHeader)
 			res.Header().Set("Content-Type", accept.WithQuality(1).String())
