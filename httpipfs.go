@@ -255,21 +255,11 @@ func NewHttpIpfsHandlerFunc(
 		}
 		accept := accepts[0]
 
-		// Parse filename parameter - trustlesshttp.ParseFilename only accepts .car
-		// but frisbii also supports raw responses with .bin, so we handle that case
-		fileName, err := trustlesshttp.ParseFilename(req)
+		// Parse filename parameter - supports both .car and .bin extensions
+		fileName, err := trustlesshttp.ParseFilename(req, accepts)
 		if err != nil {
-			// If ParseFilename failed, check if it's because of .bin extension for raw response
-			if accept.IsRaw() && req.URL.Query().Get("filename") != "" {
-				fileName = req.URL.Query().Get("filename")
-				if !strings.HasSuffix(fileName, ".bin") {
-					logError(http.StatusBadRequest, fmt.Errorf("invalid filename parameter for raw response; expected .bin extension"))
-					return
-				}
-			} else {
-				logError(http.StatusBadRequest, err)
-				return
-			}
+			logError(http.StatusBadRequest, err)
+			return
 		}
 
 		// validate CID path parameter
