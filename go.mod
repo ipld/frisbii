@@ -7,7 +7,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ipfs/go-block-format v0.2.3
 	github.com/ipfs/go-cid v0.5.0
-	github.com/ipfs/go-graphsync v0.17.0
+	github.com/ipfs/go-graphsync v0.18.0
 	github.com/ipfs/go-ipld-format v0.6.3
 	github.com/ipfs/go-log/v2 v2.8.2
 	github.com/ipfs/go-test v0.2.3
@@ -19,7 +19,7 @@ require (
 	github.com/ipld/go-trustless-utils v0.7.0
 	github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4
 	github.com/ipni/go-libipni v0.7.1
-	github.com/ipni/index-provider v0.15.5
+	github.com/ipni/index-provider v0.16.0
 	github.com/libp2p/go-libp2p v0.44.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multihash v0.2.3
@@ -58,8 +58,6 @@ require (
 	github.com/ipfs/boxo v0.35.0 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
 	github.com/ipfs/go-datastore v0.9.0 // indirect
-	github.com/ipfs/go-ipfs-blocksutil v0.0.1 // indirect
-	github.com/ipfs/go-ipfs-util v0.0.3 // indirect
 	github.com/ipfs/go-ipld-cbor v0.2.1 // indirect
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
