@@ -28,7 +28,7 @@ jobs:
 
       # 2. Build frisbii
       - name: Checkout frisbii
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: frisbii
 
