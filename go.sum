@@ -199,8 +199,8 @@ github.com/ipld/go-trustless-utils v0.7.0 h1:iKFR4f9MdPw/cM0AMz7Ss+QGyTh5RylCAjO
 github.com/ipld/go-trustless-utils v0.7.0/go.mod h1:inKRRT3L9BT1r/u6yBbXuIq+wIGO2yf0NqiOo36bH9U=
 github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4 h1:0VXv637/xpI0Pb5J8K+K8iRtTw4DOcxs0MB1HMzfwNY=
 github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4/go.mod h1:WcT0DfRe+e2QFY0kcbsOnuT6jL5Q0JNZ83I5DHIdStg=
-github.com/ipni/go-libipni v0.7.1 h1:0peyJTXXgrDHqjiqpSuYlxH3JIvnUMw1Orq7nJtq/tY=
-github.com/ipni/go-libipni v0.7.1/go.mod h1:RtAxDhPYVXd/So3w4kWI/NIYc1tYfpzoKu8jtNoDmLU=
+github.com/ipni/go-libipni v0.7.2 h1:EDkpQGDFY3mlgzjJeG901H7ETbDodJe8IHb+4BQc+/4=
+github.com/ipni/go-libipni v0.7.2/go.mod h1:8upXhRlrXKHfSUKf8bT7RqgJTX61Tw0BOPWP6y5lOWU=
 github.com/ipni/index-provider v0.16.0 h1:TfU6D5C3sHg3ysQm25MEsKOeU/AsLOaLGEys+uz2U6I=
 github.com/ipni/index-provider v0.16.0/go.mod h1:xso34LEpwNkSx3yxJ8fpuXlT/30Uwdxu6SALY5b7cJk=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
@@ -237,8 +237,8 @@ github.com/libp2p/go-buffer-pool v0.1.0 h1:oK4mSFcQz7cTQIfqbe4MIj9gLW+mnanjyFtc6
 github.com/libp2p/go-buffer-pool v0.1.0/go.mod h1:N+vh8gMqimBzdKkSMVuydVDq+UV5QTWy5HSiZacSbPg=
 github.com/libp2p/go-flow-metrics v0.3.0 h1:q31zcHUvHnwDO0SHaukewPYgwOBSxtt830uJtUx6784=
 github.com/libp2p/go-flow-metrics v0.3.0/go.mod h1:nuhlreIwEguM1IvHAew3ij7A8BMlyHQJ279ao24eZZo=
-github.com/libp2p/go-libp2p v0.44.0 h1:5Gtt8OrF8yiXmH+Mx4+/iBeFRMK1TY3a8OrEBDEqAvs=
-github.com/libp2p/go-libp2p v0.44.0/go.mod h1:NovCojezAt4dnDd4fH048K7PKEqH0UFYYqJRjIIu8zc=
+github.com/libp2p/go-libp2p v0.45.0 h1:Pdhr2HsFXaYjtfiNcBP4CcRUONvbMFdH3puM9vV4Tiw=
+github.com/libp2p/go-libp2p v0.45.0/go.mod h1:NovCojezAt4dnDd4fH048K7PKEqH0UFYYqJRjIIu8zc=
 github.com/libp2p/go-libp2p-asn-util v0.4.1 h1:xqL7++IKD9TBFMgnLPZR6/6iYhawHKHl950SO9L6n94=
 github.com/libp2p/go-libp2p-asn-util v0.4.1/go.mod h1:d/NI6XZ9qxw67b4e+NgpQexCIiFYJjErASrYW4PFDN8=
 github.com/libp2p/go-libp2p-pubsub v0.15.0 h1:cG7Cng2BT82WttmPFMi50gDNV+58K626m/wR00vGL1o=
