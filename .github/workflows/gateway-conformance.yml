@@ -21,7 +21,7 @@ jobs:
     steps:
       # 1. Download the gateway-conformance fixtures
       - name: Download gateway-conformance fixtures
-        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@v0.8
+        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@v0.10
         with:
           output: fixtures
           merged: true
@@ -66,7 +66,7 @@ jobs:
 
       # 4. Run the gateway-conformance tests
       - name: Run gateway-conformance tests
-        uses: ipfs/gateway-conformance/.github/actions/test@v0.8
+        uses: ipfs/gateway-conformance/.github/actions/test@v0.10
         with:
           gateway-url: http://127.0.0.1:3747
           specs: trustless-gateway
