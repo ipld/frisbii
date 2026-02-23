@@ -16,11 +16,15 @@ builds:
 universal_binaries:
   - replace: true
 archives:
-  - format_overrides:
-    - goos: windows
-      format: zip
-    - goos: darwin
-      format: zip
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+      - goos: darwin
+        formats:
+          - zip
 release:
   mode: keep-existing
 changelog:
