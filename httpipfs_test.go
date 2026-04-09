@@ -85,15 +85,13 @@ func TestHttpIpfsHandler(t *testing.T) {
 			expectedBody:       "invalid Accept header; unsupported: \"applicaiton/json\"",
 		},
 		{
-			// special case where we get to start the request because everything
-			// is valid, but the block isn't in our blockstore; passing this
-			// depends on deferring writing the CAR output until after we've
-			// at least loaded the first block.
+			// Root block doesn't exist; the preflight hasBlock check catches
+			// this before StreamCar traversal setup.
 			name:               "block not found",
 			path:               "/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 			accept:             trustlesshttp.DefaultContentType().String(),
 			expectedStatusCode: http.StatusNotFound,
-			expectedBody:       "failed to load root node: failed to load root CID: ipld: could not find bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
+			expectedBody:       "ipld: could not find bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
 		},
 		{
 			name:               "bad raw request",
@@ -266,6 +264,83 @@ func TestProbePathAndHeadRequests(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithBlockHasCheck(t *testing.T) {
+	req := require.New(t)
+
+	// Set up a link system with test data
+	lsys := cidlink.DefaultLinkSystem()
+	store := &memstore.Store{}
+	lsys.SetReadStorage(&trustlesstestutil.CorrectedMemStore{ParentStore: store})
+	lsys.SetWriteStorage(store)
+
+	// Store a test block
+	testData := []byte("block has check test content")
+	testLink, err := lsys.Store(linking.LinkContext{}, cidlink.LinkPrototype{Prefix: cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1,
+	}}, basicnode.NewBytes(testData))
+	req.NoError(err)
+	testCid := testLink.(cidlink.Link).Cid
+
+	missingCid, err := cid.Parse("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi")
+	req.NoError(err)
+
+	// Track calls to verify the has-check is used instead of LoadRaw
+	var hasCheckCalls []cid.Cid
+	hasCheck := func(ctx context.Context, c cid.Cid) (bool, error) {
+		hasCheckCalls = append(hasCheckCalls, c)
+		// Check if the block is in the store
+		has, err := store.Has(ctx, cidlink.Link{Cid: c}.Binary())
+		if err != nil {
+			return false, err
+		}
+		return has, nil
+	}
+
+	handler := frisbii.NewHttpIpfs(context.Background(), lsys, frisbii.WithBlockHasCheck(hasCheck))
+	testServer := httptest.NewServer(handler)
+	defer testServer.Close()
+
+	// HEAD for existing block uses has-check
+	hasCheckCalls = nil
+	request, err := http.NewRequest(http.MethodHead, testServer.URL+"/ipfs/"+testCid.String(), nil)
+	req.NoError(err)
+	request.Header.Set("Accept", trustlesshttp.MimeTypeRaw)
+	res, err := http.DefaultClient.Do(request)
+	req.NoError(err)
+	req.Equal(http.StatusOK, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	req.NoError(err)
+	req.Empty(body)
+	req.Len(hasCheckCalls, 1, "has-check should be called for HEAD")
+	req.Equal(testCid, hasCheckCalls[0])
+
+	// HEAD for missing block uses has-check and returns 404
+	hasCheckCalls = nil
+	request, err = http.NewRequest(http.MethodHead, testServer.URL+"/ipfs/"+missingCid.String(), nil)
+	req.NoError(err)
+	request.Header.Set("Accept", trustlesshttp.MimeTypeRaw)
+	res, err = http.DefaultClient.Do(request)
+	req.NoError(err)
+	req.Equal(http.StatusNotFound, res.StatusCode)
+	req.Len(hasCheckCalls, 1, "has-check should be called for HEAD on missing block")
+
+	// GET still loads the full block (has-check not called)
+	hasCheckCalls = nil
+	request, err = http.NewRequest(http.MethodGet, testServer.URL+"/ipfs/"+testCid.String(), nil)
+	req.NoError(err)
+	request.Header.Set("Accept", trustlesshttp.MimeTypeRaw)
+	res, err = http.DefaultClient.Do(request)
+	req.NoError(err)
+	req.Equal(http.StatusOK, res.StatusCode)
+	body, err = io.ReadAll(res.Body)
+	req.NoError(err)
+	req.Equal(testData, body)
+	req.Empty(hasCheckCalls, "has-check should NOT be called for GET")
 }
 
 func TestHttpIpfsIntegration_Unixfs20mVariety(t *testing.T) {

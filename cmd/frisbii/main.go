@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-log/v2"
 	"github.com/ipfs/go-unixfsnode"
 	"github.com/ipld/frisbii"
@@ -150,6 +151,9 @@ func action(c *cli.Context) error {
 		frisbii.WithMaxResponseDuration(config.MaxResponseDuration),
 		frisbii.WithMaxResponseBytes(config.MaxResponseBytes),
 		frisbii.WithCompressionLevel(config.CompressionLevel),
+		frisbii.WithBlockHasCheck(func(ctx context.Context, c cid.Cid) (bool, error) {
+			return multicar.Has(ctx, cidlink.Link{Cid: c}.Binary())
+		}),
 	)
 	if err != nil {
 		return err

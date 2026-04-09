@@ -150,3 +150,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
+
+exclude github.com/libp2p/go-libp2p v6.0.23+incompatible
