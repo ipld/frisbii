@@ -47,6 +47,7 @@ type httpOptions struct {
 	CompressionLevel    int
 	LogWriter           io.Writer
 	LogHandler          LogHandler
+	BlockHasCheck       func(context.Context, cid.Cid) (bool, error)
 }
 
 type HttpOption func(*httpOptions)
@@ -125,6 +126,17 @@ func WithLogHandler(h LogHandler) HttpOption {
 	}
 }
 
+// WithBlockHasCheck provides a lightweight block existence check for HEAD
+// requests. When set, HEAD requests call this function instead of
+// LinkSystem.LoadRaw, which opens and fully reads the block from storage.
+// Callers can implement this as an index lookup to avoid the cost of opening
+// piece readers and materializing block bytes.
+func WithBlockHasCheck(fn func(context.Context, cid.Cid) (bool, error)) HttpOption {
+	return func(o *httpOptions) {
+		o.BlockHasCheck = fn
+	}
+}
+
 // NewHttpIpfs returns an http.Handler that serves IPLD data via HTTP according
 // to the Trustless Gateway specification.
 func NewHttpIpfs(
@@ -182,6 +194,26 @@ func NewHttpIpfsHandlerFunc(
 	opts ...HttpOption,
 ) http.HandlerFunc {
 	cfg := toConfig(opts)
+
+	// hasBlock checks whether a block exists without loading its content. When a
+	// BlockHasCheck is configured, it performs a lightweight existence query
+	// (e.g. an index lookup); otherwise it falls back to loading the full block
+	// via the LinkSystem. Not-found errors are normalized to (false, nil).
+	var hasBlock func(context.Context, cid.Cid) (bool, error)
+	if cfg.BlockHasCheck != nil {
+		hasBlock = cfg.BlockHasCheck
+	} else {
+		hasBlock = func(ctx context.Context, c cid.Cid) (bool, error) {
+			_, err := lsys.LoadRaw(linking.LinkContext{Ctx: ctx}, cidlink.Link{Cid: c})
+			if err != nil {
+				if isNotFoundError(err) {
+					return false, nil
+				}
+				return false, err
+			}
+			return true, nil
+		}
+	}
 
 	return func(res http.ResponseWriter, req *http.Request) {
 		reqCtx := ctx
@@ -390,20 +422,16 @@ func NewHttpIpfsHandlerFunc(
 				}
 			}
 		} else if isHeadRequest {
-			// HEAD request - verify content exists and set headers, but don't send body
-			// For both raw and CAR formats, we verify by checking if the root block exists
-			if _, err := lsys.LoadRaw(linking.LinkContext{Ctx: reqCtx}, cidlink.Link{Cid: rootCid}); err != nil {
-				if isNotFoundError(err) {
-					if onlyIfCached {
-						logError(http.StatusPreconditionFailed, ErrContentNotInCache)
-					} else {
-						logError(http.StatusNotFound, err)
-					}
+			found, err := hasBlock(reqCtx, rootCid)
+			if err != nil {
+				logError(http.StatusInternalServerError, err)
+			} else if !found {
+				if onlyIfCached {
+					logError(http.StatusPreconditionFailed, ErrContentNotInCache)
 				} else {
-					logError(http.StatusInternalServerError, err)
+					logError(http.StatusNotFound, format.ErrNotFound{Cid: rootCid})
 				}
 			} else {
-				// Content exists, set headers without body
 				setHeaders()
 			}
 		} else if accept.IsRaw() {
@@ -422,8 +450,17 @@ func NewHttpIpfsHandlerFunc(
 				logError(http.StatusInternalServerError, err)
 			}
 		} else {
-			// GET request for CAR - stream the CAR
-			if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
+			// GET request for CAR - preflight root existence check before
+			// setting up the traversal pipeline
+			if found, err := hasBlock(reqCtx, rootCid); err != nil {
+				logError(http.StatusInternalServerError, err)
+			} else if !found {
+				if onlyIfCached {
+					logError(http.StatusPreconditionFailed, ErrContentNotInCache)
+				} else {
+					logError(http.StatusNotFound, format.ErrNotFound{Cid: rootCid})
+				}
+			} else if err := StreamCar(reqCtx, lsys, writer, request); err != nil {
 				logger.Debugw("error streaming CAR", "cid", rootCid, "err", err)
 				if isNotFoundError(err) {
 					if onlyIfCached {
