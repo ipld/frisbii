@@ -319,8 +319,8 @@ github.com/ipld/go-trustless-utils v0.8.0 h1:/rlmYkNVInu1DaWmCF1/NfpEMEaCo/EFNX2
 github.com/ipld/go-trustless-utils v0.8.0/go.mod h1:xT4Ioui+/ZTcvAWbo23px7+yaaJvxPyRHPoYu+d0biE=
 github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4 h1:0VXv637/xpI0Pb5J8K+K8iRtTw4DOcxs0MB1HMzfwNY=
 github.com/ipld/ipld/specs v0.0.0-20231012031213-54d3b21deda4/go.mod h1:WcT0DfRe+e2QFY0kcbsOnuT6jL5Q0JNZ83I5DHIdStg=
-github.com/ipni/go-libipni v0.7.6 h1:ffZx2FBxIMdsnMXCHsSrQeB6AZnoD4fRJNA1iQZ2Ub4=
-github.com/ipni/go-libipni v0.7.6/go.mod h1:C1/NRygiDEo4QHygqdpvC+7Y+UJQNL0NIyCi4FjMQWU=
+github.com/ipni/go-libipni v0.7.7 h1:PcJfJ7aH7TATfJVpKvOnMAi9YvEsOHBA7j2LwaLBXEs=
+github.com/ipni/go-libipni v0.7.7/go.mod h1:1TFpucMiEGD1K89QXKwCE2lfdb9qy6ug6vjHoQGSxEQ=
 github.com/ipni/index-provider v0.16.3 h1:oHyYK0lSQu9rY22Apst9+/g0sq8iwu38QSqbVjVtvC4=
 github.com/ipni/index-provider v0.16.3/go.mod h1:TttX+YCYCKRfJhf87zO2zWyJ4zaTQ3WyDL9/Cb6wWM4=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
