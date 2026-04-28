@@ -311,8 +311,8 @@ github.com/ipld/go-fixtureplate v0.1.0 h1:pveFwmRgGWLyqYynhS3YTh/eqxqiLWs1+69+IU
 github.com/ipld/go-fixtureplate v0.1.0/go.mod h1:Ay5QhMt+IftFTu235vTC4PkqSED//e7UorJIKrgyDxA=
 github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa h1:g9TJyA84+NhxJVAm+2xzPNoU8/erZ3+j12MHSOzAuqE=
 github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa/go.mod h1:QKxpjLVrrTEvDP1HLeneDgp0hpzZMIdh72a1LWh2kHw=
-github.com/ipld/go-ipld-prime v0.22.0 h1:YJhDhjEOvOYaqshd3b4atIWUoRg/rKrgmwCyUHwlbuY=
-github.com/ipld/go-ipld-prime v0.22.0/go.mod h1:ol7vKxOOVgEh0iAPuiDalM+0gScXVMA5ZZa4DVrTnEA=
+github.com/ipld/go-ipld-prime v0.23.0 h1:csqdPZH60BsTC+AZrv7fpa27v+09I/oTqyHYYYE27eE=
+github.com/ipld/go-ipld-prime v0.23.0/go.mod h1:46YCFSFNFBJHPjB0pfMuv7Ly7df2eChpkpyPo5SE0bA=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20250821084354-a425e60cd714 h1:cqNk8PEwHnK0vqWln+U/YZhQc9h2NB3KjUjDPZo5Q2s=
 github.com/ipld/go-ipld-prime/storage/bsadapter v0.0.0-20250821084354-a425e60cd714/go.mod h1:ZEUdra3CoqRVRYgAX/jAJO9aZGz6SKtKEG628fHHktY=
 github.com/ipld/go-trustless-utils v0.8.0 h1:/rlmYkNVInu1DaWmCF1/NfpEMEaCo/EFNX2ndvSdQL0=
