@@ -11,7 +11,7 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.4
 	github.com/ipfs/go-log/v2 v2.9.2
 	github.com/ipfs/go-test v0.3.0
-	github.com/ipfs/go-unixfsnode v1.10.4
+	github.com/ipfs/go-unixfsnode v1.10.5
 	github.com/ipld/go-car/v2 v2.17.0
 	github.com/ipld/go-codec-dagpb v1.7.0
 	github.com/ipld/go-fixtureplate v0.1.0
@@ -57,7 +57,7 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/boxo v0.41.0 // indirect
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
-	github.com/ipfs/go-datastore v0.9.1 // indirect
+	github.com/ipfs/go-datastore v0.9.2 // indirect
 	github.com/ipfs/go-ipld-cbor v0.2.1 // indirect
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20250821073235-1979ffd425aa // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
