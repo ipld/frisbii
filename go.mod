@@ -10,7 +10,7 @@ require (
 	github.com/ipfs/go-graphsync v0.18.0
 	github.com/ipfs/go-ipld-format v0.6.4
 	github.com/ipfs/go-log/v2 v2.9.2
-	github.com/ipfs/go-test v0.3.0
+	github.com/ipfs/go-test v0.4.1
 	github.com/ipfs/go-unixfsnode v1.10.5
 	github.com/ipld/go-car/v2 v2.17.0
 	github.com/ipld/go-codec-dagpb v1.7.0
