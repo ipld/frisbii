@@ -9,17 +9,19 @@ import (
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	gstestutil "github.com/ipfs/go-graphsync/testutil"
 	"github.com/ipfs/go-unixfsnode"
 	unixfs "github.com/ipfs/go-unixfsnode/testutil"
 	"github.com/ipld/frisbii"
 	"github.com/ipld/go-car/v2"
 	"github.com/ipld/go-ipld-prime/datamodel"
+	"github.com/ipld/go-ipld-prime/fluent/qp"
 	"github.com/ipld/go-ipld-prime/linking"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
+	"github.com/ipld/go-ipld-prime/node/basicnode"
 	"github.com/ipld/go-ipld-prime/storage/memstore"
 	trustlessutils "github.com/ipld/go-trustless-utils"
 	trustlesstestutil "github.com/ipld/go-trustless-utils/testutil"
+	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,8 +29,7 @@ func TestStreamCar(t *testing.T) {
 	ctx := context.Background()
 
 	chainLsys := makeLsys()
-	tbc := gstestutil.SetupBlockChain(ctx, t, chainLsys, 1000, 100)
-	allChainBlocks := tbc.AllBlocks()
+	chainRoot, allChainBlocks := setupBlockChain(ctx, t, chainLsys, 1000, 100)
 
 	fileLsys := makeLsys()
 	fileEnt := unixfs.GenerateFile(t, &fileLsys, rand.Reader, 1<<20)
@@ -63,22 +64,22 @@ func TestStreamCar(t *testing.T) {
 		{
 			name:  "chain: all blocks",
 			scope: trustlessutils.DagScopeAll,
-			root:  tbc.TipLink.(cidlink.Link).Cid,
+			root:  chainRoot,
 			lsys:  chainLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
-				require.Equal(t, tbc.TipLink.(cidlink.Link).Cid, root)
+				require.Equal(t, chainRoot, root)
 				require.Equal(t, allChainBlocks, blks)
 			},
 		},
 		{
 			name:  "chain: just root",
 			scope: trustlessutils.DagScopeBlock,
-			root:  tbc.TipLink.(cidlink.Link).Cid,
+			root:  chainRoot,
 			lsys:  chainLsys,
 			validate: func(t *testing.T, r io.Reader) {
 				root, blks := carToBlocks(t, r)
-				require.Equal(t, tbc.TipLink.(cidlink.Link).Cid, root)
+				require.Equal(t, chainRoot, root)
 				require.Equal(t, []blocks.Block{allChainBlocks[0]}, blks)
 			},
 		},
@@ -147,6 +148,55 @@ func TestStreamCar(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setupBlockChain(
+	ctx context.Context,
+	t *testing.T,
+	lsys linking.LinkSystem,
+	blockSize int,
+	length int,
+) (cid.Cid, []blocks.Block) {
+	t.Helper()
+	require.GreaterOrEqual(t, length, 1)
+
+	linkPrototype := cidlink.LinkPrototype{Prefix: cid.NewPrefixV1(cid.DagCBOR, multihash.SHA2_256)}
+	links := make([]cidlink.Link, 0, length)
+	var parent cidlink.Link
+
+	for i := 0; i < length; i++ {
+		parentCount := int64(0)
+		if i > 0 {
+			parentCount = 1
+		}
+		node, err := qp.BuildMap(basicnode.Prototype.Any, 2, func(ma datamodel.MapAssembler) {
+			qp.MapEntry(ma, "Parents", qp.List(parentCount, func(la datamodel.ListAssembler) {
+				if i > 0 {
+					qp.ListEntry(la, qp.Link(parent))
+				}
+			}))
+			qp.MapEntry(ma, "Messages", qp.List(1, func(la datamodel.ListAssembler) {
+				qp.ListEntry(la, qp.Bytes(make([]byte, blockSize)))
+			}))
+		})
+		require.NoError(t, err)
+
+		link, err := lsys.Store(linking.LinkContext{Ctx: ctx}, linkPrototype, node)
+		require.NoError(t, err)
+		parent = link.(cidlink.Link)
+		links = append(links, parent)
+	}
+
+	chainBlocks := make([]blocks.Block, 0, length)
+	for i := len(links) - 1; i >= 0; i-- {
+		data, err := lsys.LoadRaw(linking.LinkContext{Ctx: ctx}, links[i])
+		require.NoError(t, err)
+		block, err := blocks.NewBlockWithCid(data, links[i].Cid)
+		require.NoError(t, err)
+		chainBlocks = append(chainBlocks, block)
+	}
+
+	return parent.Cid, chainBlocks
 }
 
 func carToBlocks(t *testing.T, r io.Reader) (cid.Cid, []blocks.Block) {
