@@ -21,19 +21,19 @@ jobs:
     steps:
       # 1. Download the gateway-conformance fixtures
       - name: Download gateway-conformance fixtures
-        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@v0.13
+        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@22c76440f8b5929bd14ff08bf79cb2f83669b629 # v0.13
         with:
           output: fixtures
           merged: true
 
       # 2. Build frisbii
       - name: Checkout frisbii
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: frisbii
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: frisbii/go.mod
           cache-dependency-path: frisbii/go.sum
@@ -66,7 +66,7 @@ jobs:
 
       # 4. Run the gateway-conformance tests
       - name: Run gateway-conformance tests
-        uses: ipfs/gateway-conformance/.github/actions/test@v0.13
+        uses: ipfs/gateway-conformance/.github/actions/test@22c76440f8b5929bd14ff08bf79cb2f83669b629 # v0.13
         with:
           gateway-url: http://127.0.0.1:3747
           specs: trustless-gateway
@@ -83,14 +83,14 @@ jobs:
 
       - name: Upload HTML report
         if: failure() || success()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gateway-conformance.html
           path: output.html
 
       - name: Upload JSON report
         if: failure() || success()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gateway-conformance.json
           path: output.json
