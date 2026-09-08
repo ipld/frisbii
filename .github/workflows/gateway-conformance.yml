@@ -21,7 +21,7 @@ jobs:
     steps:
       # 1. Download the gateway-conformance fixtures
       - name: Download gateway-conformance fixtures
-        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@22c76440f8b5929bd14ff08bf79cb2f83669b629 # v0.13
+        uses: ipfs/gateway-conformance/.github/actions/extract-fixtures@011d20bd61c4736e3301d35e8fe388773e492511 # v0.14.1
         with:
           output: fixtures
           merged: true
