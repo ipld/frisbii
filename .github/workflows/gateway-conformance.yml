@@ -66,7 +66,7 @@ jobs:
 
       # 4. Run the gateway-conformance tests
       - name: Run gateway-conformance tests
-        uses: ipfs/gateway-conformance/.github/actions/test@22c76440f8b5929bd14ff08bf79cb2f83669b629 # v0.13
+        uses: ipfs/gateway-conformance/.github/actions/test@011d20bd61c4736e3301d35e8fe388773e492511 # v0.14.1
         with:
           gateway-url: http://127.0.0.1:3747
           specs: trustless-gateway
